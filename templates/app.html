@@ -1033,10 +1033,44 @@
                 html += '<input type="text" class="form-input" id="meal-desc" placeholder="Опис (напр. Обід)" style="margin-top:8px">';
                 html += '<button class="btn-primary" onclick="logMeal()" id="log-meal-btn" style="margin-top:8px">Додати</button></div>';
 
+                // Water tracking
+                try {
+                    const wRes = await fetch('/api/v1/water/summary', {
+                        headers: { 'X-Telegram-Init-Data': initData },
+                    });
+                    if (wRes.ok) {
+                        const wData = await wRes.json();
+                        const water = wData.today || {};
+                        const wMl = water.amount_ml || 0;
+                        const wTarget = wData.target_ml || 2500;
+                        const wPct = Math.min(Math.round(wMl / wTarget * 100), 100);
+                        html += '<div class="card">';
+                        html += '<div class="card-title">💧 Вода: ' + wMl + ' / ' + wTarget + ' мл</div>';
+                        html += '<div class="pbar"><div class="pfill" style="width:' + wPct + '%;background:#3b82f6"></div></div>';
+                        html += '<div style="display:flex;gap:6px;margin-top:4px;">';
+                        html += '<button class="qa-chip" onclick="addWater(200)">+200мл</button>';
+                        html += '<button class="qa-chip" onclick="addWater(300)">+300мл</button>';
+                        html += '<button class="qa-chip" onclick="addWater(500)">+500мл</button>';
+                        html += '</div></div>';
+                    }
+                } catch (err) {}
+
                 content.innerHTML = html;
             } catch (err) {
                 content.innerHTML = '<div class="card"><div class="card-title">Помилка з\'єднання</div></div>';
             }
+        }
+
+        async function addWater(amount) {
+            try {
+                await fetch('/api/v1/water/log', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-Telegram-Init-Data': initData },
+                    body: JSON.stringify({ amount_ml: amount }),
+                });
+                showToast('💧 +' + amount + 'мл');
+                loadNutritionSummary();
+            } catch (err) { showToast('❌ Помилка'); }
         }
 
         async function logMeal() {
