@@ -79,3 +79,38 @@ def chat_message():
         "conversation_id": conversation_id,
         "module_used": module,
     })
+
+
+@chat_bp.route('/api/v1/chat/conversations', methods=['GET'])
+def list_conversations():
+    """List recent conversations for the authenticated user."""
+    init_data = request.headers.get('X-Telegram-Init-Data')
+    user_id = None
+
+    if init_data:
+        from routes.auth import validate_telegram_init_data, extract_user_from_init_data
+        if validate_telegram_init_data(init_data, Config.TELEGRAM_BOT_TOKEN):
+            tg_user = extract_user_from_init_data(init_data)
+            if tg_user:
+                from models.user import get_user_by_telegram_id
+                db_user = get_user_by_telegram_id(tg_user.get('id'))
+                if db_user:
+                    user_id = db_user['id']
+
+    from models.conversation import get_recent_conversations
+    conversations = get_recent_conversations(user_id, limit=5)
+
+    # Return only id, module, updated_at and a preview of the last message
+    result = []
+    for c in conversations:
+        messages = c.get('messages', [])
+        last_msg = messages[-1] if messages else None
+        result.append({
+            'id': c['id'],
+            'module': c['module'],
+            'updated_at': c['updated_at'],
+            'last_message': last_msg['content'][:100] if last_msg else None,
+            'messages': messages,
+        })
+
+    return jsonify({"conversations": result, "current_user_id": user_id})

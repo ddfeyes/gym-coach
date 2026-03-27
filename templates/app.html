@@ -465,9 +465,7 @@
         <div id="tab-chat" class="tab-content">
             <div class="page-header">💬 Чат з коучем</div>
             <div class="chat-container">
-                <div class="chat-messages" id="chatMessages">
-                    <div class="message assistant">Привіт! 👋 Я Body Coach AI — твій персональний тренер і health-коуч. Запитуй мене про тренування, харчування, відновлення — допоможу!</div>
-                </div>
+                <div class="chat-messages" id="chatMessages"></div>
                 <div class="chat-input-area">
                     <input type="text" id="chatInput" placeholder="Напиши повідомлення..." autocomplete="off">
                     <button class="chat-send-btn" id="chatSendBtn" onclick="sendMessage()">➤</button>
@@ -581,6 +579,7 @@
             if (tabName === 'profile') loadProfile();
             if (tabName === 'training') loadTrainingProgram();
             if (tabName === 'nutrition') loadNutritionSummary();
+            if (tabName === 'chat') loadChatHistory();
         }
 
         // Onboarding
@@ -979,6 +978,50 @@
             }
         });
 
+        async function loadChatHistory() {
+            if (!initData) return;
+            const chatMessages = document.getElementById('chatMessages');
+            chatMessages.innerHTML = '';
+
+            try {
+                const res = await fetch('/api/v1/chat/conversations', {
+                    headers: { 'X-Telegram-Init-Data': initData },
+                });
+                if (!res.ok) {
+                    showWelcome();
+                    return;
+                }
+                const data = await res.json();
+                const conversations = data.conversations || [];
+
+                if (conversations.length === 0) {
+                    showWelcome();
+                    return;
+                }
+
+                // Load most recent conversation
+                const latest = conversations[0];
+                conversationId = latest.id;
+                const messages = latest.messages || [];
+
+                if (messages.length === 0) {
+                    showWelcome();
+                    return;
+                }
+
+                messages.forEach(function(m) {
+                    addMessage(m.content, m.role);
+                });
+            } catch (err) {
+                console.error('Chat history load error:', err);
+                showWelcome();
+            }
+        }
+
+        function showWelcome() {
+            addMessage('Привіт! 👋 Я Body Coach AI — твій персональний тренер і health-коуч. Запитуй мене про тренування, харчування, відновлення — допоможу!', 'assistant');
+        }
+
         async function sendMessage() {
             const text = chatInput.value.trim();
             if (!text) return;
@@ -1079,6 +1122,7 @@
                         document.getElementById('onboarding-overlay').classList.add('hidden');
                         document.getElementById('main-app').style.display = 'flex';
                         loadProfile();
+                        loadChatHistory();
                         return;
                     }
                 }
