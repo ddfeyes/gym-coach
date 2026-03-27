@@ -455,9 +455,10 @@
         <!-- Sleep Tab -->
         <div id="tab-sleep" class="tab-content">
             <div class="page-header">😴 Сон і відновлення</div>
-            <div class="card">
-                <div class="card-title">Трекінг сну</div>
-                <div class="card-subtitle">З'явиться у наступних оновленнях</div>
+            <div id="sleep-content">
+                <div class="card">
+                    <div class="card-title">Завантаження...</div>
+                </div>
             </div>
         </div>
 
@@ -580,6 +581,7 @@
             if (tabName === 'training') loadTrainingProgram();
             if (tabName === 'nutrition') loadNutritionSummary();
             if (tabName === 'chat') loadChatHistory();
+            if (tabName === 'sleep') loadSleepSummary();
         }
 
         // Onboarding
@@ -986,6 +988,93 @@
             toast.style.opacity = '1';
             clearTimeout(toast._timeout);
             toast._timeout = setTimeout(function() { toast.style.opacity = '0'; }, 2500);
+        }
+
+        // Sleep
+        async function loadSleepSummary() {
+            const content = document.getElementById('sleep-content');
+            if (!initData) {
+                content.innerHTML = '<div class="card"><div class="card-title">Спочатку пройди онбординг</div></div>';
+                return;
+            }
+            content.innerHTML = '<div class="card"><div class="card-title">Завантаження...</div></div>';
+
+            try {
+                const res = await fetch('/api/v1/sleep/summary?days=7', {
+                    headers: { 'X-Telegram-Init-Data': initData },
+                });
+                if (!res.ok) {
+                    content.innerHTML = '<div class="card"><div class="card-title">Помилка</div></div>';
+                    return;
+                }
+                const data = await res.json();
+                const entries = data.entries || [];
+                const avgH = data.average_hours || 0;
+                const avgQ = data.average_quality || 0;
+
+                let html = `
+                    <div class="card">
+                        <div class="card-title">📊 Середнє за 7 днів</div>
+                        <div style="display:flex;gap:24px;margin-top:12px;">
+                            <div><div style="font-size:24px;font-weight:700">${avgH}ч</div><div style="color:#a0a0a0;font-size:12px">Годин сну</div></div>
+                            <div><div style="font-size:24px;font-weight:700">${avgQ}/5</div><div style="color:#a0a0a0;font-size:12px">Якість</div></div>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-title">😴 Відмітити сьогодні</div>
+                        <div style="display:flex;gap:8px;align-items:center;margin-top:8px;">
+                            <input type="number" class="form-input" id="sleep-hours" placeholder="Годин" step="0.5" min="0" max="24" style="width:80px;">
+                            <span style="color:#a0a0a0">годин</span>
+                            <select class="form-select" id="sleep-quality" style="width:100px;">
+                                <option value="1">😴</option>
+                                <option value="2">🙁</option>
+                                <option value="3" selected>😐</option>
+                                <option value="4">🙂</option>
+                                <option value="5">😊</option>
+                            </select>
+                            <button class="btn-primary" onclick="logSleep()" id="sleep-btn" style="flex:1;">Зберегти</button>
+                        </div>
+                    </div>
+                `;
+
+                if (entries.length > 0) {
+                    html += '<div class="card"><div class="card-title">Історія</div>';
+                    entries.forEach(function(e) {
+                        const stars = '⭐'.repeat(e.quality) + '☆'.repeat(5 - e.quality);
+                        html += '<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #2a2a2a;font-size:14px;"><span>' + e.date + '</span><span>' + e.hours + 'ч ' + stars + '</span></div>';
+                    });
+                    html += '</div>';
+                }
+
+                content.innerHTML = html;
+            } catch (err) {
+                content.innerHTML = '<div class="card"><div class="card-title">Помилка з\'єднання</div></div>';
+            }
+        }
+
+        async function logSleep() {
+            const hoursEl = document.getElementById('sleep-hours');
+            const qualityEl = document.getElementById('sleep-quality');
+            if (!hoursEl || !hoursEl.value) return;
+            const hours = parseFloat(hoursEl.value);
+            const quality = parseInt(qualityEl.value);
+            const btn = document.getElementById('sleep-btn');
+            if (btn) { btn.disabled = true; btn.textContent = '...'; }
+            try {
+                const res = await fetch('/api/v1/sleep/log', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-Telegram-Init-Data': initData },
+                    body: JSON.stringify({ hours: hours, quality: quality }),
+                });
+                if (res.ok) {
+                    showToast('✅ Збережено!');
+                    loadSleepSummary();
+                } else {
+                    if (btn) { btn.disabled = false; btn.textContent = 'Зберегти'; }
+                }
+            } catch (err) {
+                if (btn) { btn.disabled = false; btn.textContent = 'Зберегти'; }
+            }
         }
 
         // Chat

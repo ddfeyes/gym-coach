@@ -6,6 +6,7 @@ from routes.auth import auth_bp
 from routes.onboarding import onboarding_bp
 from routes.training import training_bp
 from routes.nutrition import nutrition_bp
+from routes.sleep import sleep_bp
 from bot import handle_telegram_update
 
 app = Flask(__name__)
@@ -16,6 +17,7 @@ app.register_blueprint(auth_bp)
 app.register_blueprint(onboarding_bp)
 app.register_blueprint(training_bp)
 app.register_blueprint(nutrition_bp)
+app.register_blueprint(sleep_bp)
 
 
 @app.route('/')
