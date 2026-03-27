@@ -1,0 +1,6 @@
+flask==3.1.0
+python-telegram-bot==21.8
+anthropic==0.43.0
+groq==0.15.0
+python-dotenv==1.0.1
+gunicorn==23.0.0
