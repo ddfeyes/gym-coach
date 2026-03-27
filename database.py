@@ -60,7 +60,7 @@ def create_tables():
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS ai_conversations (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL REFERENCES users(id),
+            user_id INTEGER REFERENCES users(id),
             module TEXT NOT NULL DEFAULT 'general',
 
             messages TEXT NOT NULL DEFAULT '[]',

@@ -55,7 +55,8 @@ def chat_message():
         return jsonify({"error": f"AI service error: {str(e)}"}), 500
 
     if not conversation_id:
-        conversation_id = create_conversation(user_id=user_id or 0, module=module)
+        # user_id=None is fine — create_conversation handles anonymous sessions
+        conversation_id = create_conversation(user_id=user_id or None, module=module)
 
     append_message(conversation_id, "user", user_message)
     append_message(conversation_id, "assistant", response_text)
