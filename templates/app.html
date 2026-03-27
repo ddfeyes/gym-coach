@@ -493,6 +493,22 @@
                 <div class="card-title" style="padding: 0 0 8px; font-size: 15px;">📊 Динаміка ваги</div>
                 <div id="weight-chart"></div>
             </div>
+            <div id="measurements-section" style="display:none;">
+                <div class="card-title" style="padding: 0 0 8px; font-size: 15px;">📏 Виміри тіла</div>
+                <div id="measurements-form" class="card">
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                        <div class="form-group"><label class="form-label">Біцепс лівий</label><input type="number" class="form-input" id="m-biceps-l" step="0.1" placeholder="см"></div>
+                        <div class="form-group"><label class="form-label">Біцепс правий</label><input type="number" class="form-input" id="m-biceps-r" step="0.1" placeholder="см"></div>
+                        <div class="form-group"><label class="form-label">Груди</label><input type="number" class="form-input" id="m-chest" step="0.1" placeholder="см"></div>
+                        <div class="form-group"><label class="form-label">Талія</label><input type="number" class="form-input" id="m-waist" step="0.1" placeholder="см"></div>
+                        <div class="form-group"><label class="form-label">Стегна</label><input type="number" class="form-input" id="m-hips" step="0.1" placeholder="см"></div>
+                        <div class="form-group"><label class="form-label">Стегно ліве</label><input type="number" class="form-input" id="m-thigh-l" step="0.1" placeholder="см"></div>
+                        <div class="form-group"><label class="form-label">Стегно праве</label><input type="number" class="form-input" id="m-thigh-r" step="0.1" placeholder="см"></div>
+                    </div>
+                    <button class="btn-primary" onclick="saveMeasurement()" id="m-save-btn" style="margin-top:8px;">💾 Зберегти</button>
+                </div>
+                <div id="measurements-history"></div>
+            </div>
         </div>
 
         <!-- Profile Edit Modal -->
@@ -704,9 +720,79 @@
                 } else {
                     whSection.style.display = 'none';
                 }
+
+                // Measurements
+                loadMeasurements();
             } catch (err) {
                 console.error('Profile load error:', err);
             }
+        }
+
+        async function loadMeasurements() {
+            const mSection = document.getElementById('measurements-section');
+            if (!initData) { mSection.style.display = 'none'; return; }
+            try {
+                const res = await fetch('/api/v1/measurements?limit=5', {
+                    headers: { 'X-Telegram-Init-Data': initData },
+                });
+                if (!res.ok) { mSection.style.display = 'none'; return; }
+                const data = await res.json();
+                const history = data.history || [];
+                if (history.length > 0) {
+                    mSection.style.display = 'block';
+                    const mh = document.getElementById('measurements-history');
+                    mh.innerHTML = history.slice(0, 5).map(function(m) {
+                        const parts = [];
+                        if (m.biceps_l) parts.push('Біцепс: ' + m.biceps_l + 'cм');
+                        if (m.waist) parts.push('Талія: ' + m.waist + 'cм');
+                        if (m.chest) parts.push('Груди: ' + m.chest + 'cм');
+                        if (!parts.length) parts.push('Виміри');
+                        return '<div class="weight-entry"><span>' + m.date + '</span><span>' + parts.join(' | ') + '</span></div>';
+                    }).join('');
+                } else {
+                    mSection.style.display = 'block';
+                }
+            } catch (err) { mSection.style.display = 'none'; }
+        }
+
+        async function saveMeasurement() {
+            const mSection = document.getElementById('measurements-section');
+            const btn = document.getElementById('m-save-btn');
+            const data = {
+                biceps_l: parseFloat(document.getElementById('m-biceps-l').value) || null,
+                biceps_r: parseFloat(document.getElementById('m-biceps-r').value) || null,
+                chest: parseFloat(document.getElementById('m-chest').value) || null,
+                waist: parseFloat(document.getElementById('m-waist').value) || null,
+                hips: parseFloat(document.getElementById('m-hips').value) || null,
+                thigh_l: parseFloat(document.getElementById('m-thigh-l').value) || null,
+                thigh_r: parseFloat(document.getElementById('m-thigh-r').value) || null,
+            };
+            if (!data.biceps_l && !data.biceps_r && !data.chest && !data.waist && !data.hips) {
+                showToast('❌ Вкажи хоча б одне вимірювання');
+                return;
+            }
+            if (btn) { btn.disabled = true; btn.textContent = '...'; }
+            try {
+                const res = await fetch('/api/v1/measurements', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-Telegram-Init-Data': initData },
+                    body: JSON.stringify(data),
+                });
+                if (res.ok) {
+                    showToast('✅ Виміри збережено!');
+                    document.getElementById('m-biceps-l').value = '';
+                    document.getElementById('m-biceps-r').value = '';
+                    document.getElementById('m-chest').value = '';
+                    document.getElementById('m-waist').value = '';
+                    document.getElementById('m-hips').value = '';
+                    document.getElementById('m-thigh-l').value = '';
+                    document.getElementById('m-thigh-r').value = '';
+                    loadMeasurements();
+                } else {
+                    showToast('❌ Помилка');
+                }
+            } catch (err) { showToast('❌ Помилка'); }
+            if (btn) { btn.disabled = false; btn.textContent = '💾 Зберегти'; }
         }
 
         function showProfileEdit() {

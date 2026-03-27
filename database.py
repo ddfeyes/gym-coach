@@ -126,5 +126,22 @@ def create_tables():
         )
     """)
 
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS measurements (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL REFERENCES users(id),
+            date TEXT NOT NULL,
+            biceps_l REAL,
+            biceps_r REAL,
+            chest REAL,
+            waist REAL,
+            hips REAL,
+            thigh_l REAL,
+            thigh_r REAL,
+            notes TEXT DEFAULT '',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
     db.commit()
     db.close()
