@@ -92,18 +92,42 @@ def _handle_ai_message(chat_id: int, text: str) -> dict:
         except Exception:
             pass
 
+    # Load conversation history from DB
+    conversation_history = []
+    conversation_id = None
+    if user:
+        try:
+            from models.conversation import get_recent_conversations, create_conversation, append_message
+            recent = get_recent_conversations(telegram_user_id, limit=1)
+            if recent:
+                conversation_id = recent[0]['id']
+                conversation_history = recent[0]['messages']
+        except Exception:
+            pass
+
     # Call AI
     try:
         from agents.base import ai
         response_text = ai.chat(
             system_prompt=system_prompt,
             user_message=text,
-            context={},
+            context={"conversation_history": conversation_history},
         )
     except Exception as e:
         response_text = (
             "Вибач, щось пішло не так. Спробуй ще раз або напиши пізніше. 💪"
         )
+
+    # Save conversation to DB
+    if user:
+        try:
+            from models.conversation import create_conversation, append_message
+            if not conversation_id:
+                conversation_id = create_conversation(user_id=telegram_user_id, module=module)
+            append_message(conversation_id, "user", text)
+            append_message(conversation_id, "assistant", response_text)
+        except Exception:
+            pass
 
     reply = {
         "method": "sendMessage",
