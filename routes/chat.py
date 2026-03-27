@@ -1,5 +1,6 @@
 import os
 from flask import Blueprint, request, jsonify
+from config import Config
 from agents.router import classify_message
 from agents.context_builder import build_context, format_context_for_prompt
 from models.conversation import (
