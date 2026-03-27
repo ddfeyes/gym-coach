@@ -16,6 +16,12 @@ def handle_telegram_update(update_data: dict) -> dict:
         return _handle_start(chat_id)
     if text == '/help' or text == '/menu':
         return _handle_help(chat_id)
+    if text.startswith('/today') or text.startswith('/stats'):
+        return _handle_today(chat_id)
+    if text.startswith('/program'):
+        return _handle_program(chat_id)
+    if text.startswith('/log '):
+        return _handle_log(chat_id, text[5:].strip())
 
     # Wire AI chat for all other messages
     return _handle_ai_message(chat_id, text)
@@ -62,12 +68,11 @@ def _handle_help(chat_id: int) -> dict:
     help_text = (
         "📱 *Body Coach AI — Команди*\n\n"
         "/start — Відкрити Mini App і почати онбординг\n"
-        "/help — Показати це меню\n\n"
-        "💬 Ти також можеш просто написати мені — я відповім на будь-які питання про тренування, харчування, відновлення і здоров'я.\n\n"
-        "🏋️ У Mini App ти знайдеш:\n"
-        "• Персональну тренувальну програму\n"
-        "• Трекінг харчування з AI-підрахунком калорій\n"
-        "• Чат з персональним коучем"
+        "/help — Показати це меню\n"
+        "/today — Сьогоднішній трекінг (калорії, сон)\n"
+        "/program — Твоя тренувальна програма\n"
+        "/log <опис> — Швидко залогировать прийом їжі\n\n"
+        "💬 Або просто напиши мені — я відповім!"
     )
 
     reply = {
@@ -85,6 +90,135 @@ def _handle_help(chat_id: int) -> dict:
         }),
     }
     return reply
+
+
+def _get_user(chat_id: int):
+    """Get user by telegram_id."""
+    try:
+        from models.user import get_user_by_telegram_id
+        return get_user_by_telegram_id(chat_id)
+    except Exception:
+        return None
+
+
+def _handle_today(chat_id: int) -> dict:
+    """Show today's tracking summary."""
+    user = _get_user(chat_id)
+    if not user or not user.get('onboarding_completed'):
+        return {
+            "method": "sendMessage",
+            "chat_id": chat_id,
+            "text": "👋 Ти ще не пройшов онбординг! Натисни /start щоб почати.",
+        }
+
+    try:
+        from models.nutrition import get_daily_summary
+        from models.sleep_log import get_latest_weight
+
+        today = str(__import__('datetime').date.today())
+        nutrition = get_daily_summary(user['id'], today)
+        latest_weight = get_latest_weight(user['id'])
+
+        lines = ["📊 *Сьогодні:*"]
+
+        if nutrition.get('total_calories', 0) > 0:
+            lines.append(f"🍽️ Калорії: {round(nutrition['total_calories'])} ккал")
+            lines.append(f"🥩 Білок: {round(nutrition['total_protein'])} г | Вугл: {round(nutrition['total_carbs'])} г | Жири: {round(nutrition['total_fat'])} г")
+            lines.append(f"Прийомів: {len(nutrition.get('meals', []))}")
+        else:
+            lines.append("🍽️ Їжа: ще не логив(-ла)")
+
+        if latest_weight:
+            lines.append(f"⚖️ Вага: {latest_weight['weight_kg']} кг")
+
+        lines.append("")
+        lines.append("💪 Натисни /log щоб додати прийом їжі!")
+
+        return {
+            "method": "sendMessage",
+            "chat_id": chat_id,
+            "text": "\n".join(lines),
+            "parse_mode": "Markdown",
+        }
+    except Exception as e:
+        return {
+            "method": "sendMessage",
+            "chat_id": chat_id,
+            "text": "❌ Не вдалося завантажити дані. Спробуй пізніше.",
+        }
+
+
+def _handle_program(chat_id: int) -> dict:
+    """Show user's current training program."""
+    user = _get_user(chat_id)
+    if not user or not user.get('onboarding_completed'):
+        return {
+            "method": "sendMessage",
+            "chat_id": chat_id,
+            "text": "👋 Ти ще не пройшов онбординг! Натисни /start щоб почати.",
+        }
+
+    try:
+        from models.training_program import get_active_program
+        program = get_active_program(user['id'])
+        if not program:
+            return {
+                "method": "sendMessage",
+                "chat_id": chat_id,
+                "text": "🏋️ У тебе ще немає програми! Відкрий додаток і згенеруй свою першу програму.",
+            }
+
+        lines = [f"🏋️ *{program.get('name', 'Програма')}*\n"]
+        for ex in program.get('exercises', [])[:8]:
+            lines.append(
+                f"• {ex['exercise']} — {ex['sets']}×{ex['reps']} ({ex.get('muscle_group', '')})"
+            )
+
+        return {
+            "method": "sendMessage",
+            "chat_id": chat_id,
+            "text": "\n".join(lines),
+            "parse_mode": "Markdown",
+        }
+    except Exception as e:
+        return {
+            "method": "sendMessage",
+            "chat_id": chat_id,
+            "text": "❌ Не вдалося завантажити програму.",
+        }
+
+
+def _handle_log(chat_id: int, description: str) -> dict:
+    """Quick log a meal."""
+    if not description:
+        return {
+            "method": "sendMessage",
+            "chat_id": chat_id,
+            "text": "❌ Використання: /log <опис прийому>\n\nПриклад: /log Обід: курча з рисом",
+        }
+
+    user = _get_user(chat_id)
+    if not user or not user.get('onboarding_completed'):
+        return {
+            "method": "sendMessage",
+            "chat_id": chat_id,
+            "text": "👋 Спочатку пройди онбординг — натисни /start!",
+        }
+
+    try:
+        from models.nutrition import log_meal
+        log_id = log_meal(user['id'], description, 'quick_log', 0, 0, 0, 0)
+        return {
+            "method": "sendMessage",
+            "chat_id": chat_id,
+            "text": f"✅ Додано: {description}\n\nВідкрий додаток щоб побачити розрахунок калорій AI 🕸️",
+        }
+    except Exception as e:
+        return {
+            "method": "sendMessage",
+            "chat_id": chat_id,
+            "text": "❌ Не вдалося додати. Спробуй пізніше.",
+        }
 
 
 def _handle_ai_message(chat_id: int, text: str) -> dict:
