@@ -287,7 +287,71 @@
             font-size: 22px;
             font-weight: 700;
             margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
         }
+        .edit-btn {
+            background: none;
+            border: 1px solid #2a2a2a;
+            border-radius: 8px;
+            padding: 4px 10px;
+            color: #a0a0a0;
+            font-size: 13px;
+            cursor: pointer;
+        }
+        .edit-btn:active { border-color: #6366f1; color: #6366f1; }
+
+        /* Modal */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.8);
+            z-index: 300;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .modal-overlay.hidden { display: none; }
+        .modal-content {
+            background: #1a1a1a;
+            border: 1px solid #2a2a2a;
+            border-radius: 12px;
+            padding: 20px;
+            width: 100%;
+            max-width: 400px;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+            font-weight: 600;
+            font-size: 16px;
+        }
+        .modal-close {
+            background: none;
+            border: none;
+            color: #666;
+            font-size: 24px;
+            cursor: pointer;
+            line-height: 1;
+        }
+
+        /* Weight history */
+        .weight-entry {
+            display: flex;
+            justify-content: space-between;
+            padding: 6px 0;
+            font-size: 13px;
+            border-bottom: 1px solid #2a2a2a;
+            color: #a0a0a0;
+        }
+        .weight-entry:last-child { border-bottom: none; }
+        .weight-entry .kg { color: #fff; font-weight: 600; }
     </style>
 </head>
 <body>
@@ -419,12 +483,58 @@
 
         <!-- Profile Tab -->
         <div id="tab-profile" class="tab-content">
-            <div class="page-header">👤 Профіль</div>
+            <div class="page-header">👤 Профіль <button class="edit-btn" onclick="showProfileEdit()">✏️ Редагувати</button></div>
             <div class="card">
                 <div class="card-title" id="profile-name">Завантаження...</div>
             </div>
             <div class="card">
                 <div id="profile-fields"></div>
+            </div>
+            <div id="weight-history-section" style="display:none;">
+                <div class="card-title" style="padding: 0 0 8px; font-size: 15px;">📊 Динаміка ваги</div>
+                <div id="weight-chart"></div>
+            </div>
+        </div>
+
+        <!-- Profile Edit Modal -->
+        <div id="profile-edit-modal" class="modal-overlay" onclick="closeProfileEdit(event)">
+            <div class="modal-content" onclick="event.stopPropagation()">
+                <div class="modal-header">
+                    <span>✏️ Редагувати профіль</span>
+                    <button class="modal-close" onclick="closeProfileEdit()">×</button>
+                </div>
+                <form id="profile-edit-form" onsubmit="submitProfileEdit(event)">
+                    <div class="form-group">
+                        <label class="form-label">Ім'я</label>
+                        <input type="text" class="form-input" id="pe-name" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Вага (кг)</label>
+                        <input type="number" class="form-input" id="pe-weight" step="0.1" min="30" max="300">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Головна мета</label>
+                        <select class="form-select" id="pe-goal">
+                            <option value="muscle_gain">Набір м'язової маси 💪</option>
+                            <option value="fat_loss">Схуднення 🔥</option>
+                            <option value="strength">Сила 💎</option>
+                            <option value="health">Здоров'я 🏥</option>
+                            <option value="recomposition">Рекомпозиція тіла ⚡</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Тренувань на тиждень</label>
+                        <select class="form-select" id="pe-days">
+                            <option value="2">2</option>
+                            <option value="3">3</option>
+                            <option value="4">4</option>
+                            <option value="5">5</option>
+                            <option value="6">6</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn-primary" id="pe-submit">Зберегти</button>
+                    <div id="pe-error" class="form-error"></div>
+                </form>
             </div>
         </div>
 
@@ -580,8 +690,86 @@
                     <div class="profile-field"><span class="label">Тренувань/тиж</span><span class="value">${p.training_days_per_week}</span></div>
                     <div class="profile-field"><span class="label">Мета</span><span class="value">${goals[p.primary_goal] || p.primary_goal}</span></div>
                 `;
+
+                // Weight history
+                const whSection = document.getElementById('weight-history-section');
+                const whChart = document.getElementById('weight-chart');
+                const wh = p.weight_history || [];
+                if (wh.length > 0) {
+                    whSection.style.display = 'block';
+                    whChart.innerHTML = wh.slice(0, 7).reverse().map(function(w) {
+                        return '<div class="weight-entry"><span>' + w.date + '</span><span class="kg">' + w.weight_kg + ' кг</span></div>';
+                    }).join('');
+                } else {
+                    whSection.style.display = 'none';
+                }
             } catch (err) {
                 console.error('Profile load error:', err);
+            }
+        }
+
+        function showProfileEdit() {
+            const modal = document.getElementById('profile-edit-modal');
+            modal.classList.remove('hidden');
+            // Pre-fill from current profile
+            const nameEl = document.getElementById('pe-name');
+            const weightEl = document.getElementById('pe-weight');
+            const goalEl = document.getElementById('pe-goal');
+            const daysEl = document.getElementById('pe-days');
+            const fields = document.getElementById('profile-fields');
+            const text = fields.textContent;
+            // Extract values from profile-fields display
+            const nameText = document.getElementById('profile-name').textContent.replace('👤 ', '');
+            nameEl.value = nameText;
+            // Fetch fresh data for accurate values
+            fetch('/api/v1/profile', { headers: { 'X-Telegram-Init-Data': initData } })
+                .then(function(r) { return r.json(); })
+                .then(function(p) {
+                    weightEl.value = p.weight_kg;
+                    goalEl.value = p.primary_goal;
+                    daysEl.value = p.training_days_per_week;
+                    nameEl.value = p.name;
+                });
+        }
+
+        function closeProfileEdit(e) {
+            if (!e || e.target.id === 'profile-edit-modal') {
+                document.getElementById('profile-edit-modal').classList.add('hidden');
+            }
+        }
+
+        async function submitProfileEdit(e) {
+            e.preventDefault();
+            const btn = document.getElementById('pe-submit');
+            const error = document.getElementById('pe-error');
+            btn.disabled = true;
+            error.textContent = '';
+
+            const data = {
+                name: document.getElementById('pe-name').value,
+                weight_kg: parseFloat(document.getElementById('pe-weight').value),
+                primary_goal: document.getElementById('pe-goal').value,
+                training_days_per_week: parseInt(document.getElementById('pe-days').value),
+            };
+
+            try {
+                const res = await fetch('/api/v1/profile', {
+                    method: 'PATCH',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Telegram-Init-Data': initData,
+                    },
+                    body: JSON.stringify(data),
+                });
+                if (!res.ok) {
+                    const err = await res.json();
+                    throw new Error(err.error || 'Error');
+                }
+                closeProfileEdit();
+                loadProfile();
+            } catch (err) {
+                error.textContent = err.message;
+                btn.disabled = false;
             }
         }
 
