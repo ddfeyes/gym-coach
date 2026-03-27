@@ -88,5 +88,20 @@ def create_tables():
         )
     """)
 
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS nutrition_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL REFERENCES users(id),
+            date TEXT NOT NULL,
+            meal_type TEXT DEFAULT 'meal',
+            description TEXT NOT NULL,
+            calories REAL DEFAULT 0,
+            protein REAL DEFAULT 0,
+            carbs REAL DEFAULT 0,
+            fat REAL DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
     db.commit()
     db.close()
