@@ -26,6 +26,19 @@ def chat_message():
     user_id = data.get('user_id')
     conversation_id = data.get('conversation_id')
 
+    # If user_id not provided, try to resolve from Telegram auth
+    if user_id is None:
+        init_data = request.headers.get('X-Telegram-Init-Data')
+        if init_data:
+            from routes.auth import validate_telegram_init_data, extract_user_from_init_data
+            if validate_telegram_init_data(init_data, Config.TELEGRAM_BOT_TOKEN):
+                tg_user = extract_user_from_init_data(init_data)
+                if tg_user:
+                    from models.user import get_user_by_telegram_id
+                    db_user = get_user_by_telegram_id(tg_user.get('id'))
+                    if db_user:
+                        user_id = db_user['id']
+
     module = classify_message(user_message)
 
     base_prompt = _load_base_prompt()
