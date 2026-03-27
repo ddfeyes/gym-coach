@@ -36,6 +36,19 @@
         }
         .tab-content.active { display: flex; flex-direction: column; }
 
+        /* Onboarding overlay */
+        #onboarding-overlay {
+            position: fixed;
+            inset: 0;
+            background: #0d0d0d;
+            z-index: 200;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            overflow-y: auto;
+        }
+        #onboarding-overlay.hidden { display: none; }
+
         /* Bottom Navigation */
         .bottom-nav {
             position: fixed;
@@ -87,21 +100,50 @@
             color: #a0a0a0;
         }
 
-        /* Placeholder */
-        .placeholder {
-            text-align: center;
-            padding: 40px 20px;
-            color: #666666;
-        }
-        .placeholder .placeholder-icon { font-size: 48px; margin-bottom: 16px; }
-        .placeholder h3 { color: #a0a0a0; margin-bottom: 8px; font-size: 18px; }
-        .placeholder p { font-size: 14px; line-height: 1.5; }
-
-        /* Page header */
-        .page-header {
-            font-size: 22px;
-            font-weight: 700;
+        /* Form styles */
+        .form-group {
             margin-bottom: 16px;
+        }
+        .form-label {
+            display: block;
+            font-size: 13px;
+            color: #a0a0a0;
+            margin-bottom: 6px;
+        }
+        .form-input, .form-select {
+            width: 100%;
+            background: #252525;
+            border: 1px solid #2a2a2a;
+            border-radius: 8px;
+            padding: 10px 12px;
+            color: #fff;
+            font-size: 14px;
+            outline: none;
+        }
+        .form-input:focus, .form-select:focus {
+            border-color: #6366f1;
+        }
+        .form-error {
+            color: #ef4444;
+            font-size: 12px;
+            margin-top: 4px;
+        }
+
+        .btn-primary {
+            width: 100%;
+            background: #6366f1;
+            border: none;
+            border-radius: 8px;
+            padding: 14px;
+            color: #fff;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 8px;
+        }
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: default;
         }
 
         /* Chat styles */
@@ -189,17 +231,6 @@
         }
         .chat-send-btn:disabled { opacity: 0.4; cursor: default; }
 
-        /* Coming soon badge */
-        .badge-soon {
-            display: inline-block;
-            background: #252525;
-            color: #a0a0a0;
-            font-size: 11px;
-            padding: 2px 8px;
-            border-radius: 8px;
-            margin-left: 8px;
-        }
-
         /* Module list in profile */
         .module-list { list-style: none; }
         .module-list li {
@@ -211,38 +242,129 @@
             font-size: 15px;
         }
         .module-list li:last-child { border-bottom: none; }
+
+        /* Profile data */
+        .profile-field {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid #2a2a2a;
+            font-size: 14px;
+        }
+        .profile-field:last-child { border-bottom: none; }
+        .profile-field .label { color: #a0a0a0; }
+        .profile-field .value { font-weight: 500; }
+
+        /* Page header */
+        .page-header {
+            font-size: 22px;
+            font-weight: 700;
+            margin-bottom: 16px;
+        }
     </style>
 </head>
 <body>
-    <div class="app-container">
+    <!-- Onboarding Overlay -->
+    <div id="onboarding-overlay">
+        <div class="page-header">🏋️ Онбординг</div>
+        <p style="color: #a0a0a0; margin-bottom: 20px; font-size: 14px;">
+            Заповни коротку анкету — і я створю для тебе персональну програму 💪
+        </p>
 
+        <form id="onboarding-form" onsubmit="submitOnboarding(event)">
+            <div class="form-group">
+                <label class="form-label">Ім'я</label>
+                <input type="text" class="form-input" id="ob-name" required placeholder="Як тебе звати?">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Стать</label>
+                <select class="form-select" id="ob-gender" required>
+                    <option value="">Обери...</option>
+                    <option value="male">Чоловік</option>
+                    <option value="female">Жінка</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Вік</label>
+                <input type="number" class="form-input" id="ob-age" required min="14" max="80" placeholder="Скільки років?">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Зріст (см)</label>
+                <input type="number" class="form-input" id="ob-height" required min="100" max="250" placeholder="Твій зріст">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Вага (кг)</label>
+                <input type="number" class="form-input" id="ob-weight" required min="30" max="300" step="0.1" placeholder="Поточна вага">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Досвід</label>
+                <select class="form-select" id="ob-experience" required>
+                    <option value="">Обери...</option>
+                    <option value="beginner">Початківець (до 1 року)</option>
+                    <option value="intermediate">Середній (1-3 роки)</option>
+                    <option value="advanced">Просунутий (3+ роки)</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Тренувань на тиждень</label>
+                <select class="form-select" id="ob-days" required>
+                    <option value="">Обери...</option>
+                    <option value="2">2 дні</option>
+                    <option value="3">3 дні</option>
+                    <option value="4">4 дні</option>
+                    <option value="5">5 днів</option>
+                    <option value="6">6 днів</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Головна мета</label>
+                <select class="form-select" id="ob-goal" required>
+                    <option value="">Обери...</option>
+                    <option value="muscle_gain">Набір м'язової маси 💪</option>
+                    <option value="fat_loss">Схуднення 🔥</option>
+                    <option value="strength">Сила 💎</option>
+                    <option value="health">Здоров'я 🏥</option>
+                    <option value="recomposition">Рекомпозиція тіла ⚡</option>
+                </select>
+            </div>
+
+            <button type="submit" class="btn-primary" id="ob-submit">Далі →</button>
+            <div id="ob-error" class="form-error" style="margin-top: 10px; text-align: center;"></div>
+        </form>
+    </div>
+
+    <div class="app-container" id="main-app" style="display: none;">
         <!-- Training Tab -->
         <div id="tab-training" class="tab-content active">
             <div class="page-header">🏋️ Тренування</div>
-            <div class="placeholder">
-                <div class="placeholder-icon">💪</div>
-                <h3>Тренувальна програма</h3>
-                <p>Після онбордингу тут з'явиться твоя персональна програма тренувань.</p>
+            <div class="card">
+                <div class="card-title">Твоя програма</div>
+                <div class="card-subtitle">Скоро з'явиться персональний спліт</div>
             </div>
         </div>
 
         <!-- Nutrition Tab -->
         <div id="tab-nutrition" class="tab-content">
             <div class="page-header">🥗 Харчування</div>
-            <div class="placeholder">
-                <div class="placeholder-icon">🍽️</div>
-                <h3>Харчування</h3>
-                <p>Модуль харчування буде доступний у наступних оновленнях. Слідкуй за оновленнями!</p>
+            <div class="card">
+                <div class="card-title">Калорії та макроси</div>
+                <div class="card-subtitle">Скоро будуть розраховані на основі твоєї мети</div>
             </div>
         </div>
 
         <!-- Sleep Tab -->
         <div id="tab-sleep" class="tab-content">
             <div class="page-header">😴 Сон і відновлення</div>
-            <div class="placeholder">
-                <div class="placeholder-icon">🌙</div>
-                <h3>Сон і відновлення</h3>
-                <p>Трекінг сну і рекомендації для оптимального відновлення з'являться скоро.</p>
+            <div class="card">
+                <div class="card-title">Трекінг сну</div>
+                <div class="card-subtitle">З'явиться у наступних оновленнях</div>
             </div>
         </div>
 
@@ -264,23 +386,10 @@
         <div id="tab-profile" class="tab-content">
             <div class="page-header">👤 Профіль</div>
             <div class="card">
-                <div class="card-title">Мій профіль</div>
-                <div class="card-subtitle">Заповни профіль після онбордингу</div>
+                <div class="card-title" id="profile-name">Завантаження...</div>
             </div>
             <div class="card">
-                <div class="card-title">Модулі</div>
-                <ul class="module-list">
-                    <li>🏋️ Тренування <span class="badge-soon">Фаза 1</span></li>
-                    <li>🥗 Харчування <span class="badge-soon">Фаза 3</span></li>
-                    <li>😴 Сон <span class="badge-soon">Фаза 4</span></li>
-                    <li>📚 Бібліотека вправ <span class="badge-soon">Фаза 5</span></li>
-                    <li>📊 Аналітика <span class="badge-soon">Фаза 6</span></li>
-                    <li>🧠 Психологія <span class="badge-soon">Фаза 7</span></li>
-                </ul>
-            </div>
-            <div class="card">
-                <div class="card-title">Про додаток</div>
-                <div class="card-subtitle">Body Coach AI v1.0.0</div>
+                <div id="profile-fields"></div>
             </div>
         </div>
 
@@ -310,23 +419,100 @@
     </div>
 
     <script>
-        // Telegram WebApp init
         const tg = window.Telegram.WebApp;
         tg.ready();
         tg.expand();
 
+        const initData = tg.initData;
+        let currentUserId = null;
         let conversationId = null;
 
         // Tab switching
         function switchTab(tabName) {
             document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
             document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-
             document.getElementById('tab-' + tabName).classList.add('active');
             event.currentTarget.classList.add('active');
+            if (tabName === 'profile') loadProfile();
+        }
 
-            if (tg.HapticFeedback) {
-                tg.HapticFeedback.impactOccurred('light');
+        // Onboarding
+        async function submitOnboarding(e) {
+            e.preventDefault();
+            const btn = document.getElementById('ob-submit');
+            const error = document.getElementById('ob-error');
+            btn.disabled = true;
+            error.textContent = '';
+
+            const data = {
+                name: document.getElementById('ob-name').value,
+                gender: document.getElementById('ob-gender').value,
+                age: parseInt(document.getElementById('ob-age').value),
+                height_cm: parseFloat(document.getElementById('ob-height').value),
+                weight_kg: parseFloat(document.getElementById('ob-weight').value),
+                experience_level: document.getElementById('ob-experience').value,
+                training_days_per_week: parseInt(document.getElementById('ob-days').value),
+                primary_goal: document.getElementById('ob-goal').value,
+            };
+
+            try {
+                const res = await fetch('/api/v1/onboarding', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Telegram-Init-Data': initData,
+                    },
+                    body: JSON.stringify(data),
+                });
+
+                const result = await res.json();
+                if (!res.ok) throw new Error(result.error || 'Помилка');
+
+                // Onboarding complete — hide overlay, show app
+                document.getElementById('onboarding-overlay').classList.add('hidden');
+                document.getElementById('main-app').style.display = 'flex';
+                loadProfile();
+            } catch (err) {
+                error.textContent = err.message;
+                btn.disabled = false;
+            }
+        }
+
+        // Profile
+        async function loadProfile() {
+            try {
+                const res = await fetch('/api/v1/profile', {
+                    headers: { 'X-Telegram-Init-Data': initData },
+                });
+                if (!res.ok) return;
+                const p = await res.json();
+                currentUserId = p.id;
+                document.getElementById('profile-name').textContent = '👤 ' + p.name;
+
+                const goals = {
+                    muscle_gain: 'Набір маси',
+                    fat_loss: 'Схуднення',
+                    strength: 'Сила',
+                    health: 'Здоров\'я',
+                    recomposition: 'Рекомпозиція',
+                };
+                const levels = {
+                    beginner: 'Початківець',
+                    intermediate: 'Середній',
+                    advanced: 'Просунутий',
+                };
+
+                const fields = document.getElementById('profile-fields');
+                fields.innerHTML = `
+                    <div class="profile-field"><span class="label">Вік</span><span class="value">${p.age} років</span></div>
+                    <div class="profile-field"><span class="label">Зріст</span><span class="value">${p.height_cm} см</span></div>
+                    <div class="profile-field"><span class="label">Вага</span><span class="value">${p.weight_kg} кг</span></div>
+                    <div class="profile-field"><span class="label">Досвід</span><span class="value">${levels[p.experience_level] || p.experience_level}</span></div>
+                    <div class="profile-field"><span class="label">Тренувань/тиж</span><span class="value">${p.training_days_per_week}</span></div>
+                    <div class="profile-field"><span class="label">Мета</span><span class="value">${goals[p.primary_goal] || p.primary_goal}</span></div>
+                `;
+            } catch (err) {
+                console.error('Profile load error:', err);
             }
         }
 
@@ -346,33 +532,36 @@
             const text = chatInput.value.trim();
             if (!text) return;
 
-            // Add user message
             addMessage(text, 'user');
             chatInput.value = '';
             chatSendBtn.disabled = true;
 
-            // Show typing
             const typingEl = addMessage('Думаю...', 'typing');
 
             try {
+                const body = {
+                    message: text,
+                    conversation_id: conversationId,
+                };
+                if (currentUserId) body.user_id = currentUserId;
+
                 const response = await fetch('/api/v1/chat/message', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        message: text,
-                        conversation_id: conversationId,
-                    }),
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Telegram-Init-Data': initData,
+                    },
+                    body: JSON.stringify(body),
                 });
 
                 const data = await response.json();
-
-                // Remove typing
                 typingEl.remove();
 
                 if (data.error) {
-                    addMessage('Вибач, сталась помилка. Спробуй ще раз.', 'assistant');
+                    addMessage('Вибач, сталась помилка: ' + data.error, 'assistant');
                 } else {
                     conversationId = data.conversation_id;
+                    if (!currentUserId && data.user_id) currentUserId = data.user_id;
                     addMessage(data.response, 'assistant');
                 }
             } catch (err) {
@@ -391,6 +580,31 @@
             chatMessages.scrollTop = chatMessages.scrollHeight;
             return div;
         }
+
+        // Init: check if user has completed onboarding
+        async function init() {
+            try {
+                const res = await fetch('/api/v1/profile', {
+                    headers: { 'X-Telegram-Init-Data': initData },
+                });
+                if (res.ok) {
+                    const p = await res.json();
+                    if (p.onboarding_completed) {
+                        document.getElementById('onboarding-overlay').classList.add('hidden');
+                        document.getElementById('main-app').style.display = 'flex';
+                        loadProfile();
+                        return;
+                    }
+                }
+            } catch (err) {
+                console.error('Init profile check error:', err);
+            }
+            // Show onboarding
+            document.getElementById('onboarding-overlay').classList.remove('hidden');
+            document.getElementById('main-app').style.display = 'none';
+        }
+
+        init();
     </script>
 </body>
 </html>
