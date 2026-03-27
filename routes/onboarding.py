@@ -1,9 +1,103 @@
 """Onboarding routes — profile creation and updates via Telegram Mini App auth."""
 import json
+import threading
 from flask import Blueprint, request, jsonify
 from models.user import get_user_by_telegram_id, create_user, update_user
 
 onboarding_bp = Blueprint('onboarding', __name__)
+
+
+def _generate_training_async(user_id: int):
+    """Generate training program in background thread."""
+    def _run():
+        try:
+            from models.user import get_user_by_id
+            from models.training_program import create_training_program, set_active_program
+            from agents.base import ai
+            import os
+
+            user = get_user_by_id(user_id)
+            if not user:
+                return
+
+            base_prompt_path = os.path.join(os.path.dirname(__file__), '..', 'agents', 'prompts', 'base_prompt.txt')
+            try:
+                with open(base_prompt_path, 'r', encoding='utf-8') as f:
+                    base_prompt = f.read()
+            except FileNotFoundError:
+                base_prompt = "Ти — Body Coach AI, персональний фітнес-тренер."
+
+            context_parts = [
+                f"Ім'я: {user['name']}",
+                f"Стать: {user['gender']}",
+                f"Вік: {user['age']}",
+                f"Зріст: {user['height_cm']} см",
+                f"Вага: {user['weight_kg']} кг",
+                f"Досвід: {user['experience_level']}",
+                f"Тренувань/тиждень: {user['training_days_per_week']}",
+                f"Ціль: {user['primary_goal']}",
+                f"Тип залу: {user['gym_type']}",
+            ]
+            if user.get('injuries'):
+                context_parts.append(f"Травми/обмеження: {user['injuries']}")
+
+            system_prompt = f"""{base_prompt}
+
+## Контекст користувача
+{chr(10).join(context_parts)}
+
+## Завдання
+Згенеруй персональну тренувальну програму JSON. Відповідь — ТІЛЬКИ JSON (без markdown):
+
+{{
+  "name": "Назва програми",
+  "program_type": "split",
+  "schedule": ["День 1: Груди+Трицепси", "День 2: Спина+Біцепси", ...],
+  "exercises": [
+    {{
+      "day": 1,
+      "muscle_group": "Груди",
+      "exercise": "Назва вправи",
+      "sets": 4,
+      "reps": "8-12",
+      "rest_seconds": 90,
+      "notes": ""
+    }}
+  ],
+  "notes": "Загальні нотатки"
+}}
+
+Вимоги:
+- {user['training_days_per_week']} тренувань на тиждень
+- Врахуй досвід: {user['experience_level']} і ціль: {user['primary_goal']}"""
+
+            response = ai.chat(
+                system_prompt=system_prompt,
+                user_message="Згенеруй персональну тренувальну програму",
+                context={},
+            )
+
+            text = response.strip()
+            if text.startswith('```'):
+                text = text.split('```')[1]
+                if text.startswith('json'):
+                    text = text[4:]
+            program_data = json.loads(text.strip())
+
+            program_id = create_training_program(
+                user_id=user_id,
+                name=program_data.get('name', 'Training Program'),
+                schedule=program_data.get('schedule', []),
+                exercises=program_data.get('exercises', []),
+                program_type=program_data.get('program_type', 'split'),
+                notes=program_data.get('notes', ''),
+            )
+            set_active_program(user_id, program_id)
+        except Exception as e:
+            print(f"[onboarding] Training program generation failed: {e}")
+
+    thread = threading.Thread(target=_run)
+    thread.start()
 
 
 @onboarding_bp.route('/api/v1/onboarding', methods=['POST'])
@@ -69,7 +163,10 @@ def submit_onboarding():
     else:
         user_id = create_user(**user_data)
 
-    return jsonify({"ok": True, "user_id": user_id})
+    # Auto-generate training program in background
+    _generate_training_async(user_id)
+
+    return jsonify({"ok": True, "user_id": user_id, "generating_program": True})
 
 
 @onboarding_bp.route('/api/v1/profile', methods=['GET'])

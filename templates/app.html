@@ -231,6 +231,28 @@
         }
         .chat-send-btn:disabled { opacity: 0.4; cursor: default; }
 
+        .quick-actions {
+            display: flex;
+            gap: 8px;
+            padding: 8px 0 0;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+        .quick-actions::-webkit-scrollbar { display: none; }
+        .qa-chip {
+            flex-shrink: 0;
+            background: #1a1a1a;
+            border: 1px solid #2a2a2a;
+            border-radius: 16px;
+            padding: 6px 12px;
+            color: #a0a0a0;
+            font-size: 12px;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: border-color 0.2s, color 0.2s;
+        }
+        .qa-chip:active { border-color: #6366f1; color: #6366f1; }
+
         /* Module list in profile */
         .module-list { list-style: none; }
         .module-list li {
@@ -386,6 +408,12 @@
                     <input type="text" id="chatInput" placeholder="Напиши повідомлення..." autocomplete="off">
                     <button class="chat-send-btn" id="chatSendBtn" onclick="sendMessage()">➤</button>
                 </div>
+                <div class="quick-actions" id="quickActions">
+                    <button class="qa-chip" onclick="qaLogMeal()">🥗 Лог їжі</button>
+                    <button class="qa-chip" onclick="qaViewProgram()">🏋️ Програма</button>
+                    <button class="qa-chip" onclick="qaNutrition()">📊 Нутриція</button>
+                    <button class="qa-chip" onclick="qaRandomTip()">💡 Порада</button>
+                </div>
             </div>
         </div>
 
@@ -477,10 +505,42 @@
                 const result = await res.json();
                 if (!res.ok) throw new Error(result.error || 'Помилка');
 
-                // Onboarding complete — hide overlay, show app
-                document.getElementById('onboarding-overlay').classList.add('hidden');
-                document.getElementById('main-app').style.display = 'flex';
-                loadProfile();
+                // Onboarding complete — show generating state, app comes after
+                const overlay = document.getElementById('onboarding-overlay');
+                const form = document.getElementById('onboarding-form');
+                form.innerHTML = `
+                    <div style="text-align:center; padding: 40px 20px;">
+                        <div style="font-size: 48px; margin-bottom: 16px;">🏋️</div>
+                        <div style="font-size: 18px; font-weight: 600; margin-bottom: 8px;">Створюю твою програму...</div>
+                        <div style="color: #a0a0a0; font-size: 14px;">Це займе до 30 секунд</div>
+                        <div style="margin-top: 24px; color: #6366f1; font-size: 13px;">Завантажую тренування...</div>
+                    </div>
+                `;
+
+                // Wait for program to generate, then show app and switch to training tab
+                const checkProgram = async () => {
+                    try {
+                        const r = await fetch('/api/v1/training-program', {
+                            headers: { 'X-Telegram-Init-Data': initData },
+                        });
+                        if (r.ok) {
+                            const d = await r.json();
+                            if (d.has_program) {
+                                overlay.classList.add('hidden');
+                                document.getElementById('main-app').style.display = 'flex';
+                                // Switch to training tab
+                                document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+                                document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+                                document.getElementById('tab-training').classList.add('active');
+                                document.querySelectorAll('.nav-item')[0].classList.add('active');
+                                loadTrainingProgram();
+                                return;
+                            }
+                        }
+                    } catch (err) {}
+                    setTimeout(checkProgram, 3000);
+                };
+                setTimeout(checkProgram, 2000);
             } catch (err) {
                 error.textContent = err.message;
                 btn.disabled = false;
@@ -782,6 +842,41 @@
             chatMessages.appendChild(div);
             chatMessages.scrollTop = chatMessages.scrollHeight;
             return div;
+        }
+
+        function qaSend(text) {
+            chatInput.value = text;
+            sendMessage();
+        }
+        function qaLogMeal() {
+            // Switch to nutrition tab using nav
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            document.getElementById('tab-nutrition').classList.add('active');
+            document.querySelectorAll('.nav-item')[1].classList.add('active');
+            loadNutritionSummary();
+        }
+        function qaViewProgram() {
+            switchTab('training');
+        }
+        function qaNutrition() {
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            document.getElementById('tab-nutrition').classList.add('active');
+            document.querySelectorAll('.nav-item')[1].classList.add('active');
+            loadNutritionSummary();
+        }
+        function qaRandomTip() {
+            const tips = [
+                "Якщо хочеш набрати м'язову massу, потрібно 2.2-2.5г білка на кг ваги щодня.",
+                "Відпочинок так само важливий як тренування. М'язи ростуть під час відпочинку, не в залі.",
+                "Вода — найкращий напій до, під час і після тренування. 30мл на кг ваги на день.",
+                "Якщо ти схуднення — не різь все жирне. Мозок потребує жири для роботи.",
+                "Біг натщесерце не спалює більше жиру — це міф. Тренування натщесерце може призвести до втрати м'язів.",
+            ];
+            const tip = tips[Math.floor(Math.random() * tips.length)];
+            addMessage('💡 ' + tip, 'assistant');
+            chatMessages.scrollTop = chatMessages.scrollHeight;
         }
 
         // Init: check if user has completed onboarding
