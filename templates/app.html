@@ -352,6 +352,40 @@
         }
         .weight-entry:last-child { border-bottom: none; }
         .weight-entry .kg { color: #fff; font-weight: 600; }
+
+        /* Progress bars */
+        .progress-bar-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 5px 0;
+            font-size: 12px;
+        }
+        .progress-label {
+            min-width: 70px;
+            color: #888;
+        }
+        .progress-bar-wrap {
+            flex: 1;
+            height: 8px;
+            background: #2a2a2a;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .progress-bar-fill {
+            height: 100%;
+            background: #4caf50;
+            border-radius: 4px;
+            transition: width 0.3s ease;
+        }
+        .progress-bar-fill.training {
+            background: #2196f3;
+        }
+        .progress-value {
+            min-width: 40px;
+            text-align: right;
+            color: #ccc;
+        }
     </style>
 </head>
 <body>
@@ -462,6 +496,40 @@
             </div>
         </div>
 
+        <!-- Progress Tab -->
+        <div id="tab-progress" class="tab-content">
+            <div class="page-header">📊 Прогрес</div>
+
+            <!-- Streak -->
+            <div class="card">
+                <div id="progress-streak" class="card-title">Завантаження...</div>
+            </div>
+
+            <!-- Active Program -->
+            <div class="card">
+                <div class="card-title">🏋️ Активна програма</div>
+                <div id="progress-program"></div>
+            </div>
+
+            <!-- Weight Chart -->
+            <div class="card">
+                <div class="card-title">⚖️ Вага</div>
+                <div id="progress-weight"></div>
+            </div>
+
+            <!-- Training Frequency -->
+            <div class="card">
+                <div class="card-title">📅 Тренування по тижнях</div>
+                <div id="progress-training"></div>
+            </div>
+
+            <!-- Measurements -->
+            <div class="card">
+                <div class="card-title">📏 Вимірювання</div>
+                <div id="progress-measurements"></div>
+            </div>
+        </div>
+
         <!-- Chat Tab -->
         <div id="tab-chat" class="tab-content">
             <div class="page-header">💬 Чат з коучем</div>
@@ -567,6 +635,10 @@
                 <span class="nav-icon">😴</span>
                 <span class="nav-label">Sleep</span>
             </div>
+            <div class="nav-item" onclick="switchTab('progress')">
+                <span class="nav-icon">📊</span>
+                <span class="nav-label">Progress</span>
+            </div>
             <div class="nav-item" onclick="switchTab('chat')">
                 <span class="nav-icon">💬</span>
                 <span class="nav-label">Chat</span>
@@ -598,6 +670,7 @@
             if (tabName === 'nutrition') loadNutritionSummary();
             if (tabName === 'chat') loadChatHistory();
             if (tabName === 'sleep') loadSleepSummary();
+            if (tabName === 'progress') loadProgress();
         }
 
         // Onboarding
@@ -1363,6 +1436,79 @@
             // Show onboarding
             document.getElementById('onboarding-overlay').classList.remove('hidden');
             document.getElementById('main-app').style.display = 'none';
+        }
+
+        async function loadProgress() {
+            if (!initData) return;
+            try {
+                const res = await fetch('/api/v1/progress', {
+                    headers: { 'X-Telegram-Init-Data': initData },
+                });
+                if (!res.ok) return;
+                const d = await res.json();
+
+                // Streak
+                const streakEl = document.getElementById('progress-streak');
+                if (d.streak_weeks !== undefined) {
+                    streakEl.innerHTML = '🔥 ' + d.streak_weeks + ' тижнів підряд';
+                } else {
+                    streakEl.textContent = 'Розпочни тренуватися!';
+                }
+
+                // Active program
+                const progEl = document.getElementById('progress-program');
+                if (d.active_program) {
+                    progEl.innerHTML = '<div class="profile-field"><span class="label">Програма</span><span class="value">' + d.active_program.name + '</span></div>';
+                } else {
+                    progEl.innerHTML = '<div style="color:#888;font-size:13px">Немає активної програми</div>';
+                }
+
+                // Weight chart
+                const weightEl = document.getElementById('progress-weight');
+                const wh = d.weight_history || [];
+                if (wh.length > 0) {
+                    const minW = Math.min(...wh.map(w => w.weight_kg));
+                    const maxW = Math.max(...wh.map(w => w.weight_kg));
+                    const range = maxW - minW || 1;
+                    weightEl.innerHTML = wh.map(function(w) {
+                        const barW = Math.max(10, ((w.weight_kg - minW) / range) * 80 + 20);
+                        return '<div class="progress-bar-row"><span class="progress-label">' + w.date + '</span><div class="progress-bar-wrap"><div class="progress-bar-fill" style="width:' + barW + '%"></div></div><span class="progress-value">' + w.weight_kg + ' кг</span></div>';
+                    }).join('');
+                } else {
+                    weightEl.innerHTML = '<div style="color:#888;font-size:13px">Немає даних про вагу</div>';
+                }
+
+                // Training per week
+                const trainingEl = document.getElementById('progress-training');
+                const tw = d.training_per_week || [];
+                if (tw.length > 0) {
+                    const maxC = Math.max(...tw.map(t => t.count), 1);
+                    trainingEl.innerHTML = tw.map(function(t) {
+                        const barW = (t.count / maxC) * 100;
+                        return '<div class="progress-bar-row"><span class="progress-label">Тиж. ' + t.week + '</span><div class="progress-bar-wrap"><div class="progress-bar-fill training" style="width:' + barW + '%"></div></div><span class="progress-value">' + t.count + '</span></div>';
+                    }).join('');
+                } else {
+                    trainingEl.innerHTML = '<div style="color:#888;font-size:13px">Немає даних про тренування</div>';
+                }
+
+                // Measurements
+                const measEl = document.getElementById('progress-measurements');
+                const m = d.measurements || {};
+                const parts = ['biceps', 'chest', 'waist', 'hips', 'thighs'];
+                const labels = {biceps: 'Біцепси', chest: 'Груди', waist: 'Талія', hips: 'Стегна', thighs: 'Стегна'};
+                let measHTML = '';
+                parts.forEach(function(p) {
+                    const entries = m[p] || [];
+                    if (entries.length > 0) {
+                        const last = entries[entries.length - 1];
+                        measHTML += '<div class="profile-field"><span class="label">' + (labels[p] || p) + '</span><span class="value">' + last.value + ' см</span></div>';
+                    }
+                });
+                measEl.innerHTML = measHTML || '<div style="color:#888;font-size:13px">Немає даних</div>';
+
+            } catch (err) {
+                console.error('Progress load error:', err);
+            }
         }
 
         init();
