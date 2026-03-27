@@ -169,11 +169,12 @@ def submit_onboarding():
     return jsonify({"ok": True, "user_id": user_id, "generating_program": True})
 
 
-@onboarding_bp.route('/api/v1/profile', methods=['GET'])
-def get_profile():
-    """Get current user's profile.
-    
-    Requires X-Telegram-Init-Data header.
+@onboarding_bp.route('/api/v1/profile', methods=['GET', 'PATCH'])
+def get_or_update_profile():
+    """Get or update current user's profile.
+
+    GET: Returns profile + latest weight + weight history
+    PATCH: Updates profile fields (name, weight_kg, primary_goal, etc.)
     """
     init_data = request.headers.get('X-Telegram-Init-Data')
     if not init_data:
@@ -190,13 +191,51 @@ def get_profile():
     if not user:
         return jsonify({"error": "User not found", "onboarding_completed": False}), 404
 
-    # Remove sensitive internal fields
     safe_fields = [
         'id', 'name', 'gender', 'age', 'height_cm', 'weight_kg',
         'experience_level', 'training_days_per_week', 'primary_goal',
         'secondary_goals', 'gym_type', 'available_equipment',
         'injuries', 'onboarding_completed', 'language',
     ]
-    profile = {k: v for k, v in user.items() if k in safe_fields}
 
-    return jsonify(profile)
+    if request.method == 'GET':
+        # Include weight data
+        try:
+            from models.weight_log import get_weight_history, get_latest_weight
+            weight_history = get_weight_history(user['id'])
+            latest_weight = get_latest_weight(user['id'])
+        except Exception:
+            weight_history = []
+            latest_weight = None
+
+        profile = {k: v for k, v in user.items() if k in safe_fields}
+        profile['weight_history'] = weight_history
+        profile['latest_weight'] = latest_weight
+        return jsonify(profile)
+
+    # PATCH — update profile
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "JSON body required"}), 400
+
+    updatable = ['name', 'weight_kg', 'primary_goal', 'training_days_per_week',
+                 'experience_level', 'gym_type', 'age']
+    update_data = {k: v for k, v in data.items() if k in updatable}
+
+    if update_data:
+        if 'age' in update_data:
+            update_data['age'] = int(update_data['age'])
+        if 'weight_kg' in update_data:
+            update_data['weight_kg'] = float(update_data['weight_kg'])
+        if 'training_days_per_week' in update_data:
+            update_data['training_days_per_week'] = int(update_data['training_days_per_week'])
+        update_user(user['id'], **update_data)
+
+    if 'weight_kg' in data:
+        try:
+            from models.weight_log import log_weight
+            log_weight(user['id'], float(data['weight_kg']))
+        except Exception:
+            pass
+
+    return jsonify({"ok": True})
