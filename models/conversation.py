@@ -2,9 +2,15 @@ import json
 from database import get_db
 
 
-def create_conversation(user_id, module='general'):
+def create_conversation(user_id=None, module='general'):
+    """Create a new conversation. user_id may be None for anonymous sessions."""
     db = get_db()
     cursor = db.cursor()
+    # Validate user_id exists to avoid FK violation
+    if user_id is not None:
+        exists = db.execute("SELECT 1 FROM users WHERE id = ?", (user_id,)).fetchone()
+        if not exists:
+            user_id = None
     cursor.execute(
         "INSERT INTO ai_conversations (user_id, module) VALUES (?, ?)",
         (user_id, module),
