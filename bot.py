@@ -14,6 +14,8 @@ def handle_telegram_update(update_data: dict) -> dict:
 
     if text == '/start':
         return _handle_start(chat_id)
+    if text == '/help' or text == '/menu':
+        return _handle_help(chat_id)
 
     # Wire AI chat for all other messages
     return _handle_ai_message(chat_id, text)
@@ -37,6 +39,42 @@ def _handle_start(chat_id: int) -> dict:
         "method": "sendMessage",
         "chat_id": chat_id,
         "text": welcome_text,
+        "reply_markup": json.dumps({
+            "inline_keyboard": [[
+                {
+                    "text": "🏋️ Відкрити додаток",
+                    "web_app": {"url": base_url}
+                }
+            ]]
+        }),
+    }
+    return reply
+
+
+def _handle_help(chat_id: int) -> dict:
+    """Обробка команди /help"""
+    webapp_url = Config.TELEGRAM_WEBHOOK_URL
+    if webapp_url:
+        base_url = webapp_url.replace('/webhook/telegram', '')
+    else:
+        base_url = ''
+
+    help_text = (
+        "📱 *Body Coach AI — Команди*\n\n"
+        "/start — Відкрити Mini App і почати онбординг\n"
+        "/help — Показати це меню\n\n"
+        "💬 Ти також можеш просто написати мені — я відповім на будь-які питання про тренування, харчування, відновлення і здоров'я.\n\n"
+        "🏋️ У Mini App ти знайдеш:\n"
+        "• Персональну тренувальну програму\n"
+        "• Трекінг харчування з AI-підрахунком калорій\n"
+        "• Чат з персональним коучем"
+    )
+
+    reply = {
+        "method": "sendMessage",
+        "chat_id": chat_id,
+        "text": help_text,
+        "parse_mode": "Markdown",
         "reply_markup": json.dumps({
             "inline_keyboard": [[
                 {
