@@ -9,6 +9,7 @@ from routes.nutrition import nutrition_bp
 from routes.sleep import sleep_bp
 from routes.measurements import measurements_bp
 from routes.water import water_bp
+from routes.progress import progress_bp
 from bot import handle_telegram_update
 
 app = Flask(__name__)
@@ -22,6 +23,7 @@ app.register_blueprint(nutrition_bp)
 app.register_blueprint(sleep_bp)
 app.register_blueprint(measurements_bp)
 app.register_blueprint(water_bp)
+app.register_blueprint(progress_bp)
 
 
 @app.route('/')
