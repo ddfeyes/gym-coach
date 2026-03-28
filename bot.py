@@ -25,7 +25,7 @@ def handle_telegram_update(update_data: dict) -> dict:
     if text.startswith('/log '):
         return _handle_log(chat_id, text[5:].strip())
     if text.startswith('/workout'):
-        return _handle_workout(chat_id)
+        return _handle_workout(chat_id, text)
     if text.startswith('/water'):
         return _handle_water(chat_id, text)
     if text.startswith('/week'):
@@ -418,8 +418,10 @@ def _handle_log(chat_id: int, description: str) -> dict:
         }
 
 
-def _handle_workout(chat_id: int) -> dict:
-    """Quick log a training session."""
+def _handle_workout(chat_id: int, raw_text: str = '') -> dict:
+    """Quick log a training session. Accepts: /workout [duration] ["notes"]
+    Examples: /workout, /workout 45, /workout 45min, /workout "felt great"
+    Examples: /workout 45min "Upper body" """
     user = _get_user(chat_id)
     if not user or not user.get('onboarding_completed'):
         return {
@@ -429,33 +431,125 @@ def _handle_workout(chat_id: int) -> dict:
         }
 
     try:
-        from models.training_session import log_training_session
+        import re
+        from models.training_session import log_training_session, get_training_sessions
         from models.training_program import get_active_training_program
+        from datetime import date
 
-        # Get active program if exists
+        # Parse duration and notes from raw_text
+        duration = 0
+        notes = ''
+
+        text = raw_text.strip()
+
+        # Extract duration: "45min", "45 min", "45", "1h30", "90min"
+        duration_pattern = r'(\d+)\s*(?:h|год)?\s*(\d+)?\s*(?:min|хв|м|хвилин)?'
+        duration_match = re.search(duration_pattern, text.lower())
+        if duration_match:
+            hours = int(duration_match.group(1)) if duration_match.group(1) else 0
+            mins = int(duration_match.group(2)) if duration_match.group(2) else 0
+            # If only one number and it's > 100, treat as minutes (common case)
+            if hours > 0 and not duration_match.group(2):
+                # Could be hours or minutes - check context
+                if hours <= 23:  # likely minutes
+                    duration = hours
+                    hours = 0
+                else:  # likely hours
+                    mins = 0
+            else:
+                duration = hours * 60 + mins
+            # Remove the duration part from text for notes
+            text = re.sub(duration_pattern, '', text, flags=re.IGNORECASE).strip()
+
+        # Extract quoted notes: "some text" or 'some text'
+        quote_pattern = r'["\"\']([^"\']+)["\"\']]'
+        quote_match = re.search(quote_pattern, text)
+        if quote_match:
+            notes = quote_match.group(1).strip()
+        else:
+            # Rest of text is notes
+            notes = text.strip()
+            # Remove common words
+            notes = re.sub(r'^(тренування|треня|training|workout)\s*', '', notes, flags=re.IGNORECASE).strip()
+
+        # Get active program
         program_id = None
+        program_name = None
+        today_workout = None
         active = get_active_training_program(user['id'])
         if active:
             program_id = active['id']
+            program_name = active.get('name', 'Тренувальна програма')
+            schedule = active.get('schedule', [])
+            if schedule:
+                today = date.today()
+                day_idx = today.weekday() % len(schedule)
+                today_workout = schedule[day_idx]
 
-        session_id = log_training_session(user['id'], program_id=program_id)
+        # Log the session
+        session_id = log_training_session(
+            user['id'],
+            program_id=program_id,
+            duration_minutes=duration if duration > 0 else 0,
+            notes=notes if notes else ''
+        )
 
-        # Calculate total sessions
-        from models.training_session import get_training_sessions
+        # Calculate totals
         sessions = get_training_sessions(user['id'], limit=100)
         total = len(sessions)
 
+        # Build confirmation
+        lines = ["✅ *Тренування залоговано!*"]
+
+        if today_workout:
+            lines.append(f"🏋️ {today_workout}")
+
+        if duration > 0:
+            lines.append(f"⏱️ {duration} хв")
+
+        if notes:
+            lines.append(f"📝 {notes}")
+
+        lines.append(f"\n💪 Всього тренувань: {total}")
+
+        # Calculate streak
+        from datetime import timedelta
+        streak = 0
+        current = date.today()
+        while True:
+            week_start = current - timedelta(days=current.weekday())
+            week_end = week_start + timedelta(days=6)
+            week_sessions = [s for s in sessions
+                           if week_start <= date.fromisoformat(s['date']) <= week_end]
+            if week_sessions:
+                streak += 1
+                current = week_start - timedelta(days=1)
+            else:
+                break
+            if streak > 52:
+                break
+
+        if streak > 0:
+            lines.append(f"🔥 Streak: {streak} тижнів")
+
+        lines.append(f"\n💡 /next — що тренувати сьогодні")
+        lines.append(f"💡 /program — повна програма")
+
         return {
             "method": "sendMessage",
             "chat_id": chat_id,
-            "text": f"✅ Тренування залоговано!\nВсього тренувань: {total} 💪",
+            "text": "\n".join(lines),
+            "parse_mode": "Markdown",
         }
+
     except Exception as e:
+        import traceback
         return {
             "method": "sendMessage",
             "chat_id": chat_id,
-            "text": "❌ Не вдалося залогировать. Спробуй пізніше.",
+            "text": "❌ Не вдалося залогировать: " + str(e),
         }
+
 
 
 def _handle_water(chat_id: int, text: str) -> dict:
