@@ -27,6 +27,12 @@ def handle_telegram_update(update_data: dict) -> dict:
             return _handle_inline_log_meal(chat_id, message_id, callback_query['id'], 'perekus')
         elif data == 'action:water':
             return _handle_inline_water(chat_id, message_id, callback_query['id'])
+        elif data == 'action:water_250':
+            return _handle_inline_water_amount(chat_id, message_id, callback_query['id'], 250)
+        elif data == 'action:water_500':
+            return _handle_inline_water_amount(chat_id, message_id, callback_query['id'], 500)
+        elif data == 'action:water_1000':
+            return _handle_inline_water_amount(chat_id, message_id, callback_query['id'], 1000)
         elif data == 'action:workout':
             return _handle_inline_workout(chat_id, message_id, callback_query['id'])
         elif data == 'action:workout_30':
@@ -2354,14 +2360,34 @@ def _handle_inline_log_meal(chat_id: int, message_id: int, cq_id: str, meal_type
 
 
 def _handle_inline_water(chat_id: int, message_id: int, cq_id: str) -> dict:
-    """Log 250ml water and respond."""
+    """Show water amount selection."""
+    return {
+        "method": "editMessageText",
+        "chat_id": chat_id,
+        "message_id": message_id,
+        "text": "💧 *Додати воду*\n\nОбери кількість:",
+        "parse_mode": "Markdown",
+        "reply_markup": json.dumps({
+            "inline_keyboard": [[
+                {"text": "💧 250 мл", "callback_data": "action:water_250"},
+                {"text": "💧 500 мл", "callback_data": "action:water_500"},
+            ], [
+                {"text": "💧 1000 мл", "callback_data": "action:water_1000"},
+                {"text": "🍽️ Їжа", "callback_data": "action:log"},
+            ]],
+        }),
+    }
+
+
+def _handle_inline_water_amount(chat_id: int, message_id: int, cq_id: str, amount: int) -> dict:
+    """Log water and respond."""
     user = _get_user(chat_id)
     if not user or not user.get('onboarding_completed'):
         return {"method": "answerCallbackQuery", "callback_query_id": cq_id, "text": "❌ Спочатку /start"}
     try:
         from models.water_log import add_water_log
         from datetime import date
-        add_water_log(user['id'], date.today().isoformat(), 250)
+        add_water_log(user['id'], date.today().isoformat(), amount)
         today = str(date.today())
         from models.water_log import get_daily_water
         today_water = get_daily_water(user['id'], today)
@@ -2370,10 +2396,14 @@ def _handle_inline_water(chat_id: int, message_id: int, cq_id: str) -> dict:
             "method": "editMessageText",
             "chat_id": chat_id,
             "message_id": message_id,
-            "text": f"💧 *Вода записана!*\n\n+250 мл\nСьогодні: {water_ml} / 2500 мл",
+            "text": f"💧 *Вода записана!*\n\n+{amount} мл\nСьогодні: {water_ml} / 2500 мл",
             "parse_mode": "Markdown",
             "reply_markup": json.dumps({
-                "inline_keyboard": [[{"text": "🍽️ Лог їжі", "callback_data": "action:log"}, {"text": "💪 Тренування", "callback_data": "action:workout"}]],
+                "inline_keyboard": [[
+                    {"text": "💧 Ще", "callback_data": "action:water"},
+                    {"text": "🍽️ Їжа", "callback_data": "action:log"},
+                    {"text": "💪 Тренування", "callback_data": "action:workout"},
+                ]],
             }),
         }
     except Exception as e:
