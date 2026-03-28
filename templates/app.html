@@ -1334,6 +1334,35 @@
                 html += '<div class="pbar"><div class="pfill" style="width:' + carbsPct + '%;background:#22c55e"></div></div>';
                 html += '<div class="mrow"><span>Жири</span><span>' + Math.round(summary.total_fat) + ' / ' + targets.fat + ' г</span></div>';
                 html += '<div class="pbar"><div class="pfill" style="width:' + fatPct + '%;background:var(--accent)"></div></div>';
+                html += '</div>';
+
+                // Macro distribution donut chart
+                const protCal = Math.round(summary.total_protein) * 4;
+                const carbsCal = Math.round(summary.total_carbs) * 4;
+                const fatCal = Math.round(summary.total_fat) * 9;
+                const totalCal = protCal + carbsCal + fatCal;
+                if (totalCal > 0) {
+                    const r = 40, cx = 50, cy = 50, circ = 2 * Math.PI * r;
+                    const protShare = protCal / totalCal;
+                    const carbsShare = carbsCal / totalCal;
+                    const fatShare = fatCal / totalCal;
+                    const dashProt = circ * protShare;
+                    const dashCarbs = circ * carbsShare;
+                    const dashFat = circ * fatShare;
+                    const gap = 4;
+                    html += '<div style="display:flex;align-items:center;gap:16px;margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">';
+                    html += '<svg viewBox="0 0 100 100" width="80" height="80" style="flex-shrink:0">';
+                    html += '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="none" stroke="#ef4444" stroke-width="12" stroke-dasharray="' + dashProt.toFixed(1) + ' ' + (circ - dashProt).toFixed(1) + '" stroke-dashoffset="' + (circ * 0.25).toFixed(1) + '"/>';
+                    html += '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="none" stroke="#22c55e" stroke-width="12" stroke-dasharray="' + dashCarbs.toFixed(1) + ' ' + (circ - dashCarbs).toFixed(1) + '" stroke-dashoffset="' + (circ * 0.25 - dashProt).toFixed(1) + '"/>';
+                    html += '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="none" stroke="var(--accent)" stroke-width="12" stroke-dasharray="' + dashFat.toFixed(1) + ' ' + (circ - dashFat).toFixed(1) + '" stroke-dashoffset="' + (circ * 0.25 - dashProt - dashCarbs).toFixed(1) + '"/>';
+                    html += '</svg>';
+                    html += '<div style="font-size:12px;line-height:1.8">';
+                    html += '<div><span style="color:#ef4444">●</span> Білок: ' + Math.round(protShare * 100) + '% (' + protCal + ' ккал)</div>';
+                    html += '<div><span style="color:#22c55e">●</span> Вугл.: ' + Math.round(carbsShare * 100) + '% (' + carbsCal + ' ккал)</div>';
+                    html += '<div><span style="color:var(--accent)">●</span> Жири: ' + Math.round(fatShare * 100) + '% (' + fatCal + ' ккал)</div>';
+                    html += '</div></div>';
+                }
+
                 html += '</div></div>';
 
                 if (meals.length > 0) {
