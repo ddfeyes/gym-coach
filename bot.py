@@ -28,6 +28,8 @@ def handle_telegram_update(update_data: dict) -> dict:
         return _handle_workout(chat_id)
     if text.startswith('/week'):
         return _handle_week(chat_id)
+    if text.startswith('/month'):
+        return _handle_month(chat_id)
     if text.startswith('/tdee'):
         return _handle_tdee(chat_id)
 
@@ -79,6 +81,7 @@ def _handle_help(chat_id: int) -> dict:
         "/help — Показати це меню\n"
         "/today — Сьогоднішній трекінг (калорії, сон)\n"
         "/week — Тижнева статистика\n"
+        "/month — Місяцна статистика (30 днів)\n"
         "/stats — Загальна статистика (тренування, вага, заміри)\n"
         "/tdee — Добова норма калорій та макроси\n"
         "/program — Твоя тренувальна програма\n"
@@ -625,6 +628,99 @@ def _handle_stats(chat_id: int) -> dict:
             "text": "❌ Не вдалося завантажити статистику.",
         }
 
+def _handle_month(chat_id: int) -> dict:
+    """Show monthly tracking summary — last 30 days."""
+    user = _get_user(chat_id)
+    if not user or not user.get('onboarding_completed'):
+        return {
+            "method": "sendMessage",
+            "chat_id": chat_id,
+            "text": "👋 Ти ще не пройшов онбординг! Натисни /start щоб почати.",
+        }
+
+    try:
+        from models.nutrition import get_daily_summary
+        from models.training_session import get_sessions_by_date_range
+        from models.weight_log import get_weight_history
+        from datetime import date, timedelta
+
+        today = date.today()
+        month_start = today - timedelta(days=29)
+        month_start_str = str(month_start)
+        today_str = str(today)
+
+        lines = ["📅 *Місяць* (останні 30 днів)\n"]
+
+        # Nutrition — sum across all 30 days
+        total_cal = 0
+        total_protein = 0
+        total_carbs = 0
+        total_fat = 0
+        days_with_logs = 0
+        days_data = []
+        for i in range(30):
+            d = today - timedelta(days=i)
+            d_str = str(d)
+            day_summary = get_daily_summary(user['id'], d_str)
+            day_cal = day_summary.get('total_calories', 0)
+            if day_cal > 0:
+                days_with_logs += 1
+                total_cal += day_cal
+                total_protein += day_summary.get('total_protein', 0)
+                total_carbs += day_summary.get('total_carbs', 0)
+                total_fat += day_summary.get('total_fat', 0)
+                days_data.append((d_str, day_cal))
+
+        # Training sessions this month
+        sessions = get_sessions_by_date_range(user['id'], month_start_str, today_str)
+        workout_count = len(sessions)
+
+        # Weight change
+        weight_history = get_weight_history(user['id'], limit=30)
+        weight_change_str = ""
+        if len(weight_history) >= 2:
+            latest_w = weight_history[0]['weight_kg']
+            first_w = weight_history[-1]['weight_kg']
+            diff = round(latest_w - first_w, 1)
+            if diff > 0:
+                diff_str = f"(+{diff} кг)"
+            elif diff < 0:
+                diff_str = f"(−{abs(diff)} кг)"
+            else:
+                diff_str = "(= 0)"
+            weight_change_str = f" | ⚖️ {latest_w} кг {diff_str}"
+
+        # Monthly summary
+        if days_with_logs > 0:
+            avg_cal = int(total_cal / days_with_logs)
+            lines.append(f"🍽️ Калорії: {total_cal:,} ккал | Днів: {days_with_logs}/30")
+            lines.append(f"📈 Середнє/день: {avg_cal} ккал")
+            lines.append(f"🥩 Б: {int(total_protein)} г | В: {int(total_carbs)} г | Ж: {int(total_fat)} г")
+        else:
+            lines.append("🍽️ Немає записів за цей період")
+
+        lines.append(f"💪 Тренувань: {workout_count}{weight_change_str}")
+
+        # Show last 3 logged days as mini-diary
+        if days_data:
+            lines.append("\n📋 Останні записи:")
+            for d_str, cal in days_data[:3]:
+                d_obj = date.fromisoformat(d_str)
+                day_name = d_obj.strftime("%d.%m")
+                lines.append(f"  {day_name}: {cal} ккал")
+
+        return {
+            "method": "sendMessage",
+            "chat_id": chat_id,
+            "text": "\n".join(lines),
+            "parse_mode": "Markdown",
+        }
+    except Exception as e:
+        return {
+            "method": "sendMessage",
+            "chat_id": chat_id,
+            "text": "❌ Не вдалося завантажити місячну статистику.",
+        }
 
 
 
