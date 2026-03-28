@@ -729,6 +729,8 @@
                     <button class="qa-chip" onclick="qaViewProgram()">🏋️ Програма</button>
                     <button class="qa-chip" onclick="qaNutrition()">📊 Нутриція</button>
                     <button class="qa-chip" onclick="qaRandomTip()">💡 Порада</button>
+                    <button class="qa-chip" onclick="qaProgress()">📈 Прогрес</button>
+                    <button class="qa-chip" onclick="qaSleep()">😴 Сон</button>
                 </div>
             </div>
         </div>
@@ -1677,15 +1679,20 @@
         }
         function qaRandomTip() {
             const tips = [
-                "Якщо хочеш набрати м'язову massу, потрібно 2.2-2.5г білка на кг ваги щодня.",
-                "Відпочинок так само важливий як тренування. М'язи ростуть під час відпочинку, не в залі.",
-                "Вода — найкращий напій до, під час і після тренування. 30мл на кг ваги на день.",
-                "Якщо ти схуднення — не різь все жирне. Мозок потребує жири для роботи.",
-                "Біг натщесерце не спалює більше жиру — це міф. Тренування натщесерце може призвести до втрати м'язів.",
+                "Дай мені корисну пораду про тренування або харчування",
+                "Як прискорити метаболізм?",
+                "Скільки білка потрібно їсти при схудненні?",
+                "Як правильно відпочивати між тренуваннями?",
+                "Яка оптимальна тривалість тренування?",
             ];
             const tip = tips[Math.floor(Math.random() * tips.length)];
-            addMessage('💡 ' + tip, 'assistant');
-            chatMessages.scrollTop = chatMessages.scrollHeight;
+            qaSend(tip);
+        }
+        function qaProgress() {
+            qaSend('Покажи мій прогрес — вага, вимірювання, тренування за останній місяць');
+        }
+        function qaSleep() {
+            qaSend('Дай рекомендації щодо покращення сну і відновлення');
         }
 
         // Init: check if user has completed onboarding
