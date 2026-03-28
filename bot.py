@@ -44,6 +44,8 @@ def handle_telegram_update(update_data: dict) -> dict:
         return _handle_meals(chat_id)
     if text.startswith('/profile'):
         return _handle_profile(chat_id)
+    if text.startswith('/day'):
+        return _handle_day(chat_id, text)
     if text.startswith('/progress'):
         return _handle_progress(chat_id)
     if text.startswith('/tdee'):
@@ -102,6 +104,7 @@ def _handle_help(chat_id: int) -> dict:
         "/sleep — Переглянути або записати сон\n"
         "/tdee — Добова норма калорій та макроси\n"
         "/profile — Твій профіль та біо дані\n"
+        "/day <дата> — Переглянути день (2026-03-25)\n"
         "/progress — Прогрес: вага, заміри, тренування\n"
         "/program — Твоя тренувальна програма\n"
         "/next — Що тренувати сьогодні\n"
@@ -1788,6 +1791,134 @@ def _handle_profile(chat_id: int) -> dict:
             "method": "sendMessage",
             "chat_id": chat_id,
             "text": "❌ Не вдалося завантажити профіль: " + str(e),
+        }
+
+def _handle_day(chat_id: int, text: str) -> dict:
+    """Handle /day <date> command — show all tracking for a specific date.
+    Usage: /day 2026-03-25 or /day yesterday or /day today"""
+    user = _get_user(chat_id)
+    if not user or not user.get('onboarding_completed'):
+        return {
+            "method": "sendMessage",
+            "chat_id": chat_id,
+            "text": "👋 Ти ще не пройшов онбординг! Натисни /start щоб почати.",
+        }
+
+    try:
+        from datetime import date, timedelta, datetime
+        from models.nutrition import get_daily_summary
+        from models.training_session import get_sessions_by_date_range
+        from models.sleep_log import get_sleep_logs
+        from models.water_log import get_daily_water
+        from models.weight_log import get_weight_history
+
+        # Parse date argument
+        arg = text.strip().lower()
+        if not arg or arg == 'today':
+            target_date = date.today()
+        elif arg == 'yesterday':
+            target_date = date.today() - timedelta(days=1)
+        else:
+            # Try YYYY-MM-DD
+            try:
+                target_date = date.fromisoformat(arg)
+            except ValueError:
+                # Try DD.MM.YYYY or DD/MM/YYYY
+                for fmt in ['%d.%m.%Y', '%d/%m/%Y', '%d-%m-%Y']:
+                    try:
+                        target_date = datetime.strptime(arg, fmt).date()
+                        break
+                    except ValueError:
+                        continue
+                else:
+                    return {
+                        "method": "sendMessage",
+                        "chat_id": chat_id,
+                        "text": "❌ Неправильний формат дати. Використай:\n`/day` — сьогодні\n`/day 2026-03-25` — конкретна дата\n`/day yesterday` — вчора",
+                        "parse_mode": "Markdown",
+                    }
+
+        target_str = str(target_date)
+        date_display = target_date.strftime('%d.%m.%Y')
+
+        lines = [f"📅 *{date_display}*\n"]
+
+        # === Nutrition ===
+        nutrition = get_daily_summary(user['id'], target_str)
+        meals = nutrition.get('meals', [])
+        total_cal = nutrition.get('total_calories', 0)
+
+        if meals:
+            lines.append(f"🍽️ *Харчування:* {total_cal} ккал")
+            for meal in meals:
+                name = meal.get('meal_name', meal.get('description', 'Прийом'))
+                cal = meal.get('calories', 0)
+                p = meal.get('protein', 0)
+                c = meal.get('carbs', 0)
+                f = meal.get('fat', 0)
+                lines.append(f"  • {name}: {cal} ккал | Б: {p}г В: {c}г Ж: {f}г")
+            lines.append(f"  💰 Всього: {total_cal} ккал | Б: {nutrition.get('total_protein',0)}г В: {nutrition.get('total_carbs',0)}г Ж: {nutrition.get('total_fat',0)}г")
+        else:
+            lines.append("🍽️ Харчування: немає записів")
+
+        # === Training ===
+        sessions = get_sessions_by_date_range(user['id'], target_str, target_str)
+        if sessions:
+            lines.append(f"\n🏋️ *Тренування:*")
+            for s in sessions:
+                name = s.get('workout_name', s.get('program_name', 'Тренування'))
+                dur = s.get('duration_minutes')
+                dur_str = f" ({dur} хв)" if dur else ""
+                lines.append(f"  • {name}{dur_str}")
+        else:
+            lines.append("\n🏋️ Тренування: немає")
+
+        # === Sleep ===
+        try:
+            sleep_logs = get_sleep_history(user['id'], days=30)
+            sleep_today = [sl for sl in sleep_logs if sl.get('date', '') == target_str]
+            if sleep_today:
+                sl = sleep_today[0]
+                duration = sl.get('hours', 0)
+                quality = sl.get('quality', '')
+                lines.append(f"\n😴 *Сон:* {duration} год")
+                if quality:
+                    lines.append(f"   Якість: {quality}/5")
+            else:
+                lines.append("\n😴 Сон: немає записів")
+        except:
+            lines.append("\n😴 Сон: немає записів")
+
+        # === Water ===
+        try:
+            water = get_daily_water(user['id'], target_str)
+            amount = water.get('amount_ml', 0) if isinstance(water, dict) else 0
+            if amount > 0:
+                lines.append(f"\n💧 Вода: {amount} мл")
+            else:
+                lines.append("\n💧 Вода: немає записів")
+        except:
+            lines.append("\n💧 Вода: немає записів")
+
+        # === Weight ===
+        weight_history = get_weight_history(user['id'], limit=100)
+        weight_today = next((w for w in weight_history if w.get('date', '') == target_str), None)
+        if weight_today:
+            lines.append(f"\n⚖️ Вага: {weight_today.get('weight_kg')} кг")
+
+        return {
+            "method": "sendMessage",
+            "chat_id": chat_id,
+            "text": "\n".join(lines),
+            "parse_mode": "Markdown",
+        }
+
+    except Exception as e:
+        import traceback
+        return {
+            "method": "sendMessage",
+            "chat_id": chat_id,
+            "text": "❌ Не вдалося завантажити дані: " + str(e),
         }
 
 def _handle_tdee(chat_id: int) -> dict:
