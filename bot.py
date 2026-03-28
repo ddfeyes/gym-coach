@@ -48,6 +48,8 @@ def handle_telegram_update(update_data: dict) -> dict:
         return _handle_day(chat_id, text)
     if text.startswith('/progress'):
         return _handle_progress(chat_id)
+    if text.startswith('/left'):
+        return _handle_left(chat_id)
     if text.startswith('/tdee'):
         return _handle_tdee(chat_id)
 
@@ -103,6 +105,7 @@ def _handle_help(chat_id: int) -> dict:
         "/stats — Загальна статистика (тренування, вага, заміри)\n"
         "/sleep — Переглянути або записати сон\n"
         "/tdee — Добова норма калорій та макроси\n"
+        "/left — Скільки залишилось з'їсти сьогодні\n"
         "/profile — Твій профіль та біо дані\n"
         "/day <дата> — Переглянути день (2026-03-25)\n"
         "/progress — Прогрес: вага, заміри, тренування\n"
@@ -1919,6 +1922,92 @@ def _handle_day(chat_id: int, text: str) -> dict:
             "method": "sendMessage",
             "chat_id": chat_id,
             "text": "❌ Не вдалося завантажити дані: " + str(e),
+        }
+
+
+
+def _handle_left(chat_id: int) -> dict:
+    """Show calories/macros remaining for today vs daily targets."""
+    user = _get_user(chat_id)
+    if not user or not user.get('onboarding_completed'):
+        return {
+            "method": "sendMessage",
+            "chat_id": chat_id,
+            "text": "👋 Ти ще не пройшов онбординг! Натисни /start щоб почати.",
+        }
+
+    try:
+        from models.nutrition import get_daily_summary
+        from models.water_log import get_daily_water
+        from datetime import date
+
+        today_str = str(date.today())
+
+        # Today's logged nutrition
+        daily = get_daily_summary(user['id'], today_str)
+        eaten_cal = daily.get('total_calories', 0)
+        eaten_protein = daily.get('total_protein', 0)
+        eaten_carbs = daily.get('total_carbs', 0)
+        eaten_fat = daily.get('total_fat', 0)
+
+        # Water
+        water = get_daily_water(user['id'], today_str)
+        water_ml = water.get('amount_ml', 0) if isinstance(water, dict) else 0
+
+        # TDEE targets
+        macros = _calculate_tdee(user)
+        target_cal = macros['target']
+        target_protein = macros['protein_g']
+        target_carbs = macros['carbs_g']
+        target_fat = macros['fat_g']
+        water_target = 2500  # default 2.5L
+
+        # Calculate remaining
+        left_cal = max(0, target_cal - eaten_cal)
+        left_protein = max(0, target_protein - eaten_protein)
+        left_carbs = max(0, target_carbs - eaten_carbs)
+        left_fat = max(0, target_fat - eaten_fat)
+        left_water = max(0, water_target - water_ml)
+
+        # Progress bars (10 chars)
+        def bar(filled, total, width=10):
+            if total <= 0:
+                return "▓" * width
+            pct = min(1.0, filled / total)
+            filled_chars = round(pct * width)
+            return "▓" * filled_chars + "░" * (width - filled_chars)
+
+        cal_bar = bar(eaten_cal, target_cal)
+        cal_pct = min(100, round(eaten_cal / target_cal * 100)) if target_cal > 0 else 0
+
+        lines = ["🍽️ *Залишок на сьогодні*\n"]
+        lines.append(f"[{cal_bar}] {cal_pct}%\n")
+
+        lines.append(f"🎯 Калорії: *{left_cal}* ккал залишилось ({eaten_cal}/{target_cal})")
+        lines.append(f"🥩 Білок:   {round(left_protein)} г ({round(eaten_protein)}/{target_protein})")
+        lines.append(f"🌾 Вуглеводи: {round(left_carbs)} г ({round(eaten_carbs)}/{target_carbs})")
+        lines.append(f"🧈 Жири:    {round(left_fat)} г ({round(eaten_fat)}/{target_fat})")
+
+        if water_ml > 0 or water_target > 0:
+            water_bar = bar(water_ml, water_target)
+            water_pct = min(100, round(water_ml / water_target * 100)) if water_target > 0 else 0
+            lines.append(f"\n💧 Вода: [{water_bar}] {water_pct}% ({water_ml}/{water_target} мл)")
+
+        lines.append("\n📋 Відкрий додаток щоб побачити детальніше!")
+
+        return {
+            "method": "sendMessage",
+            "chat_id": chat_id,
+            "text": "\n".join(lines),
+            "parse_mode": "Markdown",
+        }
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return {
+            "method": "sendMessage",
+            "chat_id": chat_id,
+            "text": "❌ Не вдалося розрахувати.",
         }
 
 def _handle_tdee(chat_id: int) -> dict:
