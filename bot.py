@@ -30,13 +30,13 @@ def handle_telegram_update(update_data: dict) -> dict:
         elif data == 'action:workout':
             return _handle_inline_workout(chat_id, message_id, callback_query['id'])
         elif data == 'action:workout_30':
-            return _handle_inline_workout_duration(chat_id, message_id, callback_query['id'], 30)
+            return _handle_inline_workout_log(chat_id, message_id, callback_query['id'], 30)
         elif data == 'action:workout_45':
-            return _handle_inline_workout_duration(chat_id, message_id, callback_query['id'], 45)
+            return _handle_inline_workout_log(chat_id, message_id, callback_query['id'], 45)
         elif data == 'action:workout_60':
-            return _handle_inline_workout_duration(chat_id, message_id, callback_query['id'], 60)
+            return _handle_inline_workout_log(chat_id, message_id, callback_query['id'], 60)
         elif data == 'action:workout_90':
-            return _handle_inline_workout_duration(chat_id, message_id, callback_query['id'], 90)
+            return _handle_inline_workout_log(chat_id, message_id, callback_query['id'], 90)
         elif data == 'action:week':
             return _handle_inline_week(chat_id, message_id, callback_query['id'])
         elif data == 'action:progress':
@@ -2437,6 +2437,65 @@ def _handle_inline_workout_duration(chat_id: int, message_id: int, cq_id: str, d
             ]],
         }),
     }
+
+
+def _handle_inline_workout_log(chat_id: int, message_id: int, cq_id: str, duration: int) -> dict:
+    """Log a workout with the specified duration directly."""
+    user = _get_user(chat_id)
+    if not user or not user.get('onboarding_completed'):
+        return {"method": "answerCallbackQuery", "callback_query_id": cq_id, "text": "❌ Спочатку /start"}
+
+    try:
+        from models.training_session import log_training_session, get_training_sessions
+        from models.training_program import get_active_training_program
+        from datetime import date
+
+        today_workout = None
+        program_id = None
+        try:
+            active = get_active_training_program(user['id'])
+            if active:
+                program_id = active.get('id')
+                schedule = active.get('schedule', [])
+                if schedule:
+                    today = date.today()
+                    day_idx = today.weekday() % len(schedule)
+                    today_workout = schedule[day_idx]
+        except Exception:
+            pass
+
+        session_id = log_training_session(
+            user['id'],
+            program_id=program_id,
+            duration_minutes=duration,
+            notes=''
+        )
+
+        sessions = get_training_sessions(user['id'], limit=100)
+        total = len(sessions)
+
+        lines = ["✅ *Тренування залоговано!*"]
+        if today_workout:
+            lines.append(f"🏋️ {today_workout}")
+        lines.append(f"⏱️ {duration} хв")
+        lines.append(f"📊 Всього тренувань: {total}")
+
+        return {
+            "method": "editMessageText",
+            "chat_id": chat_id,
+            "message_id": message_id,
+            "text": "\n".join(lines),
+            "parse_mode": "Markdown",
+            "reply_markup": json.dumps({
+                "inline_keyboard": [[
+                    {"text": "💧 Вода", "callback_data": "action:water"},
+                    {"text": "🍽️ Їжа", "callback_data": "action:log"},
+                    {"text": "📊 Прогрес", "callback_data": "action:progress"},
+                ]],
+            }),
+        }
+    except Exception as e:
+        return {"method": "answerCallbackQuery", "callback_query_id": cq_id, "text": "❌ Помилка"}
 
 
 def _handle_inline_week(chat_id: int, message_id: int, cq_id: str) -> dict:
