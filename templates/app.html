@@ -1229,6 +1229,38 @@
                     </div>
                 `;
 
+                // Today's workout card
+                const today = new Date();
+                const dayIdx = (today.getDay() + 6) % 7; // Mon=0, Sun=6
+                const todayWorkout = (p.schedule || [])[dayIdx];
+                const todayStr = today.toISOString().split('T')[0];
+                let todayDone = false;
+                try {
+                    const sessRes = await fetch('/api/v1/training-sessions?limit=30', {
+                        headers: { 'X-Telegram-Init-Data': initData },
+                    });
+                    if (sessRes.ok) {
+                        const sessData = await sessRes.json();
+                        todayDone = (sessData.sessions || []).some(s => s.date === todayStr);
+                    }
+                } catch (e) {}
+                if (todayWorkout) {
+                    const statusHtml = todayDone
+                        ? '<span style="color:#22c55e">✅ Пройдено</span>'
+                        : '<span style="color:#f59e0b">⏳ Не пройдено</span>';
+                    const actionBtn = todayDone
+                        ? ''
+                        : '<button class="btn-primary" onclick="showLogWorkout()" style="margin-top:8px;width:100%;">🏋️ Почати тренування</button>';
+                    html = `
+                    <div class="card" style="border-left:3px solid var(--accent);">
+                        <div style="font-size:12px;color:#a0a0a0;margin-bottom:4px;">СЬОГОДНІ</div>
+                        <div style="font-size:20px;font-weight:700;margin-bottom:4px;">${todayWorkout}</div>
+                        <div style="font-size:13px;margin-bottom:8px;">Статус: ${statusHtml}</div>
+                        ${actionBtn}
+                    </div>
+                ` + html;
+                }
+
                 Object.keys(byDay).sort((a, b) => a - b).forEach(day => {
                     const dayExercises = byDay[day];
                     html += `
