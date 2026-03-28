@@ -378,6 +378,20 @@
             transition: border-color 0.2s, color 0.2s;
         }
         .qa-chip:active { border-color: var(--accent); color: var(--accent); }
+        .meal-btn {
+            flex: 1;
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 6px 4px;
+            color: #a0a0a0;
+            font-size: 11px;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: border-color 0.2s, color 0.2s, background 0.2s;
+            text-align: center;
+        }
+        .meal-btn:active { border-color: var(--accent); color: var(--accent); }
 
         /* Module list in profile */
         .module-list { list-style: none; }
@@ -1411,7 +1425,13 @@
                 }
 
                 html += '<div class="card"><div class="card-title">+ Додати</div>';
-                html += '<input type="text" class="form-input" id="meal-desc" placeholder="Опис (напр. Обід)" style="margin-top:8px">';
+                html += '<div style="display:flex;gap:6px;margin-bottom:8px;">';
+                html += '<button class="meal-btn" onclick="setMealType(this, '\''Сніданок'\'')">🍳 Сніданок</button>';
+                html += '<button class="meal-btn" onclick="setMealType(this, '\''Обід'\'')">🍽️ Обід</button>';
+                html += '<button class="meal-btn" onclick="setMealType(this, '\''Вечеря'\'')">🌙 Вечеря</button>';
+                html += '<button class="meal-btn" onclick="setMealType(this, '\''Перекус'\'')">🍎 Перекус</button>';
+                html += '</div>';
+                html += '<input type="text" class="form-input" id="meal-desc" placeholder="Що з\\'їв? (напр. курча з рисом)">';
                 html += '<button class="btn-primary" onclick="logMeal()" id="log-meal-btn" style="margin-top:8px">Додати</button></div>';
 
                 // Water tracking
@@ -1454,16 +1474,36 @@
             } catch (err) { showToast('❌ Помилка'); }
         }
 
+        var _mealType = 'Перекус';
+        function setMealType(btn, type) {
+            _mealType = type;
+            var desc = document.getElementById('meal-desc');
+            if (desc) desc.value = type + ': ';
+            document.querySelectorAll('.meal-btn').forEach(function(b) { b.style.background = ''; b.style.color = ''; });
+            if (btn) { btn.style.background = 'var(--accent)'; btn.style.color = '#fff'; }
+            if (desc) desc.focus();
+        }
+
         async function logMeal() {
             var desc = document.getElementById('meal-desc');
             if (!desc || !desc.value.trim()) return;
             var btn = document.getElementById('log-meal-btn');
             if (btn) { btn.disabled = true; btn.textContent = 'Додаю...'; }
+            var mealType = _mealType;
+            // If user changed the text to start with a different meal type, detect it
+            var txt = desc.value.trim();
+            var knownTypes = ['Сніданок', 'Обід', 'Вечеря', 'Перекус'];
+            for (var i = 0; i < knownTypes.length; i++) {
+                if (txt.startsWith(knownTypes[i] + ':') || txt.startsWith(knownTypes[i] + ' ')) {
+                    mealType = knownTypes[i];
+                    break;
+                }
+            }
             try {
                 var res = await fetch('/api/v1/nutrition/log', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'X-Telegram-Init-Data': initData },
-                    body: JSON.stringify({ description: desc.value.trim() }),
+                    body: JSON.stringify({ description: txt, meal_type: mealType }),
                 });
                 if (res.ok) {
                     desc.value = '';
