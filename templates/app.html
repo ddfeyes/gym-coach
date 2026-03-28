@@ -790,6 +790,15 @@
                 };
 
                 const fields = document.getElementById('profile-fields');
+                let targetsHtml = '';
+                if (p.targets) {
+                    const t = p.targets;
+                    targetsHtml = `
+                        <div class="profile-field"><span class="label">Добова норма</span><span class="value">${t.calories} ккал</span></div>
+                        <div class="profile-field"><span class="label">TDEE</span><span class="value">${t.tdee} ккал</span></div>
+                        <div class="profile-field"><span class="label">БЖУ</span><span class="value">${t.protein_g} / ${t.carbs_g} / ${t.fat_g} г</span></div>
+                    `;
+                }
                 fields.innerHTML = `
                     <div class="profile-field"><span class="label">Вік</span><span class="value">${p.age} років</span></div>
                     <div class="profile-field"><span class="label">Зріст</span><span class="value">${p.height_cm} см</span></div>
@@ -797,7 +806,7 @@
                     <div class="profile-field"><span class="label">Досвід</span><span class="value">${levels[p.experience_level] || p.experience_level}</span></div>
                     <div class="profile-field"><span class="label">Тренувань/тиж</span><span class="value">${p.training_days_per_week}</span></div>
                     <div class="profile-field"><span class="label">Мета</span><span class="value">${goals[p.primary_goal] || p.primary_goal}</span></div>
-                `;
+                ` + targetsHtml;
 
                 // Weight history
                 const whSection = document.getElementById('weight-history-section');

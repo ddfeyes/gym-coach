@@ -208,9 +208,17 @@ def get_or_update_profile():
             weight_history = []
             latest_weight = None
 
+        # Include daily targets (TDEE, calories, macros)
+        try:
+            from routes.nutrition import _calculate_targets
+            targets = _calculate_targets(user)
+        except Exception:
+            targets = {}
+
         profile = {k: v for k, v in user.items() if k in safe_fields}
         profile['weight_history'] = weight_history
         profile['latest_weight'] = latest_weight
+        profile['targets'] = targets
         return jsonify(profile)
 
     # PATCH — update profile
