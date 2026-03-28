@@ -42,6 +42,8 @@ def handle_telegram_update(update_data: dict) -> dict:
         return _handle_next(chat_id)
     if text.startswith('/meals'):
         return _handle_meals(chat_id)
+    if text.startswith('/progress'):
+        return _handle_progress(chat_id)
     if text.startswith('/tdee'):
         return _handle_tdee(chat_id)
 
@@ -97,6 +99,7 @@ def _handle_help(chat_id: int) -> dict:
         "/stats — Загальна статистика (тренування, вага, заміри)\n"
         "/sleep — Переглянути або записати сон\n"
         "/tdee — Добова норма калорій та макроси\n"
+        "/progress — Прогрес: вага, заміри, тренування\n"
         "/program — Твоя тренувальна програма\n"
         "/next — Що тренувати сьогодні\n"
         "/log <опис> — Швидко залогировать прийом їжі\n"
@@ -1536,6 +1539,133 @@ def _handle_meals(chat_id: int) -> dict:
             "method": "sendMessage",
             "chat_id": chat_id,
             "text": "❌ Не вдалося завантажити дані: " + str(e),
+        }
+
+def _handle_progress(chat_id: int) -> dict:
+    """Handle /progress command — show overall progress summary.
+    Weight trend, measurement changes, training frequency, streak."""
+    user = _get_user(chat_id)
+    if not user or not user.get('onboarding_completed'):
+        return {
+            "method": "sendMessage",
+            "chat_id": chat_id,
+            "text": "👋 Ти ще не пройшов онбординг! Натисни /start щоб почати.",
+        }
+
+    try:
+        from datetime import date, timedelta
+        from models.weight_log import get_weight_history
+        from models.measurement import get_measurement_history
+        from models.training_session import get_training_sessions
+
+        lines = ["📊 *Твій прогрес*\n"]
+
+        # Weight history — first and latest
+        weight_history = get_weight_history(user['id'], limit=30)
+        if len(weight_history) >= 2:
+            first = weight_history[-1]
+            last = weight_history[0]
+            first_w = first.get('weight_kg', 0)
+            last_w = last.get('weight_kg', 0)
+            change = last_w - first_w
+            emoji = "📈" if change > 0 else "📉" if change < 0 else "➡️"
+            first_date = first.get('date', '')[:5]
+            last_date = last.get('date', '')[:5]
+            lines.append(f"{emoji} *Вага:* {first_w} → {last_w} кг ({change:+.1f})")
+            lines.append(f"   ({first_date} → {last_date})")
+        elif len(weight_history) == 1:
+            lines.append(f"⚖️ *Вага:* {weight_history[0].get('weight_kg')} кг")
+        else:
+            lines.append("⚖️ *Вага:* немає даних")
+
+        # Measurement changes — first vs latest (measurements table has all fields per row)
+        measurement_rows = get_measurement_history(user['id'], limit=100)
+        if len(measurement_rows) >= 2:
+            first_row = measurement_rows[-1]  # oldest
+            last_row = measurement_rows[0]   # newest
+
+            field_labels = {
+                'biceps_l': 'Біцепс лівий',
+                'biceps_r': 'Біцепс правий',
+                'chest': 'Груди',
+                'waist': 'Талія',
+                'hips': 'Стегна',
+                'thigh_l': 'Стегно ліве',
+                'thigh_r': 'Стегно праве',
+            }
+
+            changes = []
+            for field, label in field_labels.items():
+                v_first = first_row.get(field)
+                v_last = last_row.get(field)
+                if v_first is not None and v_last is not None:
+                    chg = v_last - v_first
+                    if abs(chg) > 0.01:  # only show meaningful changes
+                        changes.append((label, v_first, v_last, chg))
+
+            if changes:
+                lines.append("\n📏 *Заміри тіла:*")
+                for label, v_first, v_last, chg in changes:
+                    emoji = "📈" if chg > 0 else "📉" if chg < 0 else "➡️"
+                    lines.append(f"{emoji} {label}: {v_first} → {v_last} см ({chg:+.1f})")
+
+        # Training sessions — total + per week average
+        sessions = get_training_sessions(user['id'], limit=100)
+        total = len(sessions)
+        lines.append(f"\n🏋️ *Тренування:* {total} всього")
+
+        if total > 0:
+            dates = [date.fromisoformat(s['date']) for s in sessions]
+            min_d = min(dates)
+            max_d = max(dates)
+            weeks_span = max(1, (max_d - min_d).days // 7)
+            avg = total / weeks_span
+            lines.append(f"📅 Середнє: {avg:.1f} тренувань/тиждень")
+
+        # Streak
+        if sessions:
+            streak = 0
+            current = date.today()
+            while True:
+                week_start = current - timedelta(days=current.weekday())
+                week_end = week_start + timedelta(days=6)
+                week_sessions = [s for s in sessions
+                               if week_start <= date.fromisoformat(s['date']) <= week_end]
+                if week_sessions:
+                    streak += 1
+                    current = week_start - timedelta(days=1)
+                else:
+                    break
+                if streak > 52:
+                    break
+            if streak > 0:
+                lines.append(f"🔥 Streak: {streak} тижнів")
+
+        # Active program
+        try:
+            from models.training_program import get_active_training_program
+            active = get_active_training_program(user['id'])
+            if active:
+                lines.append(f"\n📋 *Програма:* {active.get('name', 'Моя програма')}")
+        except:
+            pass
+
+        lines.append(f"\n💡 /stats — детальна статистика")
+        lines.append(f"💡 /week — щотижневий звіт")
+
+        return {
+            "method": "sendMessage",
+            "chat_id": chat_id,
+            "text": "\n".join(lines),
+            "parse_mode": "Markdown",
+        }
+
+    except Exception as e:
+        import traceback
+        return {
+            "method": "sendMessage",
+            "chat_id": chat_id,
+            "text": "❌ Не вдалося завантажити прогрес: " + str(e),
         }
 
 def _handle_tdee(chat_id: int) -> dict:
