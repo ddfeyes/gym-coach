@@ -271,6 +271,17 @@
             opacity: 0.4;
             cursor: default;
         }
+        .btn-accent-sm {
+            background: var(--accent);
+            border: none;
+            border-radius: 20px;
+            padding: 6px 14px;
+            color: #fff;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            white-space: nowrap;
+        }
 
         /* Chat styles */
         .chat-container {
@@ -644,7 +655,10 @@
 
         <!-- Nutrition Tab -->
         <div id="tab-nutrition" class="tab-content">
-            <div class="page-header">🥗 Харчування</div>
+            <div class="page-header" style="display:flex;align-items:center;justify-content:space-between;">
+                <span>🥗 Харчування</span>
+                <button class="btn-accent-sm" onclick="showLogFoodModal()">+ Додати</button>
+            </div>
             <div id="nutrition-content">
                 <div class="card">
                     <div class="card-title">Завантаження...</div>
@@ -666,27 +680,7 @@
         <div id="tab-progress" class="tab-content">
             <div class="page-header">📊 Прогрес</div>
 
-            <!-- Stats Summary Row -->
-            <div class="stats-row">
-                <div class="stat-box">
-                    <div class="stat-label">💪 Всього</div>
-                    <div class="stat-value" id="stat-total-workouts">—</div>
-                </div>
-                <div class="stat-box">
-                    <div class="stat-label">🔥 Streak</div>
-                    <div class="stat-value" id="stat-streak">—</div>
-                </div>
-                <div class="stat-box">
-                    <div class="stat-label">⚖️ Вага</div>
-                    <div class="stat-value" id="stat-weight">—</div>
-                </div>
-                <div class="stat-box">
-                    <div class="stat-label">📈/тижд</div>
-                    <div class="stat-value" id="stat-per-week">—</div>
-                </div>
-            </div>
-
-            <!-- Stats Summary -->
+                        <!-- Stats Summary -->
             <div class="stats-row">
                 <div class="stat-box">
                     <div class="stat-label">Тренувань</div>
@@ -1048,10 +1042,13 @@
                 let targetsHtml = '';
                 if (p.targets) {
                     const t = p.targets;
+                    // API returns protein/carbs/fat (not protein_g/carbs_g/fat_g)
+                    const prot = t.protein_g || t.protein;
+                    const carb = t.carbs_g || t.carbs;
+                    const fat  = t.fat_g || t.fat;
                     targetsHtml = `
                         <div class="profile-field"><span class="label">Добова норма</span><span class="value">${t.calories} ккал</span></div>
-                        <div class="profile-field"><span class="label">TDEE</span><span class="value">${t.tdee} ккал</span></div>
-                        <div class="profile-field"><span class="label">БЖУ</span><span class="value">${t.protein_g} / ${t.carbs_g} / ${t.fat_g} г</span></div>
+                        ${(prot && carb && fat) ? '<div class="profile-field"><span class="label">БЖУ</span><span class="value">' + prot + ' / ' + carb + ' / ' + fat + ' г</span></div>' : ''}
                     `;
                 }
                 fields.innerHTML = `
@@ -1280,14 +1277,20 @@
                     }
                 } catch (e) {}
                 if (todayWorkout) {
-                    const statusHtml = todayDone
-                        ? '<span style="color:#22c55e">✅ Пройдено</span>'
-                        : '<span style="color:#f59e0b">⏳ Не пройдено</span>';
-                    const actionBtn = todayDone
-                        ? ''
-                        : '<button class="btn-primary" onclick="showLogWorkout()" style="margin-top:8px;width:100%;">🏋️ Почати тренування</button>';
+                    const isRestDay = /відпочинок|rest|день відпочинку/i.test(todayWorkout);
+                    const statusHtml = isRestDay
+                        ? '<span style="color:#22c55e">😴 День відпочинку</span>'
+                        : todayDone
+                            ? '<span style="color:#22c55e">✅ Пройдено</span>'
+                            : '<span style="color:#f59e0b">⏳ Не пройдено</span>';
+                    const actionBtn = isRestDay
+                        ? '<div style="font-size:13px;color:#888;margin-top:6px;">Відпочивай та відновлюйся 💤</div>'
+                        : todayDone
+                            ? ''
+                            : '<button class="btn-primary" onclick="showLogWorkout()" style="margin-top:8px;width:100%;">🏋️ Почати тренування</button>';
+                    const cardColor = isRestDay ? '#3b82f6' : 'var(--accent)';
                     html = `
-                    <div class="card" style="border-left:3px solid var(--accent);">
+                    <div class="card" style="border-left:3px solid ${cardColor};">
                         <div style="font-size:12px;color:#a0a0a0;margin-bottom:4px;">СЬОГОДНІ</div>
                         <div style="font-size:20px;font-weight:700;margin-bottom:4px;">${todayWorkout}</div>
                         <div style="font-size:13px;margin-bottom:8px;">Статус: ${statusHtml}</div>
@@ -1392,15 +1395,23 @@
                 const protPct = targets.protein > 0 ? Math.min(Math.round((summary.total_protein / targets.protein) * 100), 100) : 0;
                 const carbsPct = targets.carbs > 0 ? Math.min(Math.round((summary.total_carbs / targets.carbs) * 100), 100) : 0;
                 const fatPct = targets.fat > 0 ? Math.min(Math.round((summary.total_fat / targets.fat) * 100), 100) : 0;
+                // Over-target detection
+                const calOver = summary.total_calories > targets.calories;
+                const carbsOver = summary.total_carbs > targets.carbs;
+                const protLow = targets.protein > 0 && (summary.total_protein / targets.protein) < 0.5;
+                const calPctFill = targets.calories > 0 ? Math.min(Math.round((summary.total_calories / targets.calories) * 100), 100) : 0;
 
                 let html = '<div class="card"><div class="card-title">Сьогодні</div>';
+                // Warning banners
+                if (protLow) html += '<div style="background:#ef444420;border:1px solid #ef4444;border-radius:8px;padding:8px 10px;margin:8px 0;font-size:12px;color:#ef4444;">⚠️ Білок занадто низький (' + Math.round(summary.total_protein) + '/' + targets.protein + 'г). Додай куряче, яйця або сир.</div>';
+                if (calOver) html += '<div style="background:#f59e0b20;border:1px solid #f59e0b;border-radius:8px;padding:8px 10px;margin:8px 0;font-size:12px;color:#f59e0b;">⚠️ Калорії перевищено (+' + Math.round(summary.total_calories - targets.calories) + ' ккал)</div>';
                 html += '<div style="margin-top:10px">';
-                html += '<div class="mrow"><span>Калорії</span><span>' + Math.round(summary.total_calories) + ' / ' + targets.calories + ' ккал</span></div>';
-                html += '<div class="pbar"><div class="pfill" style="width:' + calPct + '%;background:#f59e0b"></div></div>';
-                html += '<div class="mrow"><span>Білок</span><span>' + Math.round(summary.total_protein) + ' / ' + targets.protein + ' г</span></div>';
+                html += '<div class="mrow"><span>Калорії</span><span style="color:' + (calOver ? '#f59e0b' : '#fff') + '">' + Math.round(summary.total_calories) + ' / ' + targets.calories + ' ккал</span></div>';
+                html += '<div class="pbar"><div class="pfill" style="width:' + calPctFill + '%;background:' + (calOver ? '#f59e0b' : '#f59e0b') + '"></div></div>';
+                html += '<div class="mrow"><span>Білок</span><span style="color:' + (protLow ? '#ef4444' : '#fff') + '">' + Math.round(summary.total_protein) + ' / ' + targets.protein + ' г</span></div>';
                 html += '<div class="pbar"><div class="pfill" style="width:' + protPct + '%;background:#ef4444"></div></div>';
-                html += '<div class="mrow"><span>Вугл.</span><span>' + Math.round(summary.total_carbs) + ' / ' + targets.carbs + ' г</span></div>';
-                html += '<div class="pbar"><div class="pfill" style="width:' + carbsPct + '%;background:#22c55e"></div></div>';
+                html += '<div class="mrow"><span>Вугл.</span><span style="color:' + (carbsOver ? '#f59e0b' : '#fff') + '">' + Math.round(summary.total_carbs) + ' / ' + targets.carbs + ' г</span></div>';
+                html += '<div class="pbar"><div class="pfill" style="width:' + carbsPct + '%;background:' + (carbsOver ? '#f59e0b' : '#22c55e') + '"></div></div>';
                 html += '<div class="mrow"><span>Жири</span><span>' + Math.round(summary.total_fat) + ' / ' + targets.fat + ' г</span></div>';
                 html += '<div class="pbar"><div class="pfill" style="width:' + fatPct + '%;background:var(--accent)"></div></div>';
                 html += '</div>';
@@ -1706,6 +1717,28 @@
 
         function showWelcome() {
             addMessage('Привіт! 👋 Я Body Coach AI — твій персональний тренер і health-коуч. Запитуй мене про тренування, харчування, відновлення — допоможу!', 'assistant');
+            // Show suggestion cards in empty chat
+            const chatMessages = document.getElementById('chatMessages');
+            const suggestions = [
+                'Що мені їсти після тренування?',
+                'Склади план харчування на день',
+                'Як прискорити відновлення?',
+                'Скільки білка мені потрібно?',
+            ];
+            const sugEl = document.createElement('div');
+            sugEl.id = 'chat-suggestions';
+            sugEl.style.cssText = 'padding:8px 0;';
+            sugEl.innerHTML = suggestions.map(function(s) {
+                return '<button onclick="useSuggestion(this)" data-text="' + s.replace(/"/g, '&quot;') + '" style="display:block;width:100%;text-align:left;background:var(--card-bg);border:1px solid var(--border);border-radius:10px;padding:10px 14px;color:#ddd;font-size:13px;cursor:pointer;margin-bottom:6px;">' + s + '</button>';
+            }).join('');
+            chatMessages.appendChild(sugEl);
+        }
+        function useSuggestion(btn) {
+            const text = btn.getAttribute('data-text');
+            const sug = document.getElementById('chat-suggestions');
+            if (sug) sug.remove();
+            document.getElementById('chatInput').value = text;
+            sendMessage();
         }
 
         async function sendMessage() {
@@ -1764,6 +1797,51 @@
         function qaSend(text) {
             chatInput.value = text;
             sendMessage();
+        }
+        function showLogFoodModal() {
+            // Switch to chat and pre-fill with /log prompt
+            switchTab('chat');
+            setTimeout(function() {
+                const inp = document.getElementById('chatInput');
+                if (inp) { inp.value = '/log '; inp.focus(); }
+            }, 100);
+        }
+        function showLogWorkout() {
+            // Show workout duration picker inline
+            const today = new Date();
+            const dayIdx = (today.getDay() + 6) % 7;
+            const modal = document.createElement('div');
+            modal.id = 'workout-quick-modal';
+            modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:300;display:flex;align-items:flex-end;';
+            modal.innerHTML = '<div style="background:var(--card-bg);border-radius:16px 16px 0 0;padding:20px;width:100%;max-width:420px;margin:0 auto;">' +
+                '<div style="font-size:16px;font-weight:700;margin-bottom:16px;">💪 Записати тренування</div>' +
+                '<div style="margin-bottom:12px;"><label style="font-size:13px;color:#aaa;">Тривалість (хв)</label>' +
+                '<input id="wq-dur" type="number" value="45" min="5" max="180" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px;color:#fff;font-size:15px;margin-top:4px;"></div>' +
+                '<div style="margin-bottom:16px;"><label style="font-size:13px;color:#aaa;">Нотатка (опціонально)</label>' +
+                '<input id="wq-note" type="text" placeholder="Чудове тренування!" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px;color:#fff;font-size:15px;margin-top:4px;"></div>' +
+                '<button onclick="submitQuickWorkout()" style="width:100%;background:var(--accent);border:none;border-radius:8px;padding:14px;color:#fff;font-size:15px;font-weight:600;cursor:pointer;margin-bottom:8px;">✅ Записати</button>' +
+                '<button onclick="document.getElementById(\'workout-quick-modal\').remove()" style="width:100%;background:transparent;border:1px solid var(--border);border-radius:8px;padding:10px;color:#aaa;font-size:14px;cursor:pointer;">Скасувати</button>' +
+                '</div>';
+            modal.addEventListener('click', function(e) { if (e.target === modal) modal.remove(); });
+            document.body.appendChild(modal);
+        }
+        async function submitQuickWorkout() {
+            const dur = parseInt(document.getElementById('wq-dur').value) || 45;
+            const note = document.getElementById('wq-note').value || '';
+            try {
+                const today = new Date().toISOString().split('T')[0];
+                const r = await fetch('/api/v1/training-sessions', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json', 'X-Telegram-Init-Data': initData},
+                    body: JSON.stringify({date: today, duration_minutes: dur, notes: note, workout_type: 'strength'})
+                });
+                if (r.ok) {
+                    document.getElementById('workout-quick-modal').remove();
+                    showToast('✅ Тренування записано!');
+                    if (document.getElementById('tab-training').classList.contains('active')) loadTraining();
+                    if (document.getElementById('tab-progress').classList.contains('active')) loadProgress();
+                } else { showToast('❌ Помилка запису'); }
+            } catch(e) { showToast('❌ Помилка мережі'); }
         }
         function qaLogMeal() {
             // Switch to nutrition tab using nav
@@ -2009,8 +2087,9 @@
                         var barW = (pct / 100) * (W - PAD * 2 - 50);
                         var fillColor = pct >= 100 ? '#22c55e' : '#3b82f6';
                         bars += '<rect x="' + PAD + '" y="' + y + '" width="' + barW.toFixed(1) + '" height="' + barH + '" rx="4" fill="' + fillColor + '" opacity="0.8"/>';
-                        bars += '<text x="' + (PAD + barW + 6) + '" y="' + (y + 13) + '" fill="#888" font-size="11">' + w.amount_ml + 'мл</text>';
-                        bars += '<text x="' + (W - PAD) + '" y="' + (y + 13) + '" text-anchor="end" fill="#aaa" font-size="10">' + (w.date || '').substring(5) + '</text>';
+                        // Date on left, amount on right — avoid overlap
+                        bars += '<text x="' + PAD + '" y="' + (y + barH + 13) + '" fill="#aaa" font-size="10">' + (w.date || '').substring(5) + '</text>';
+                        bars += '<text x="' + (W - PAD) + '" y="' + (y + barH + 13) + '" text-anchor="end" fill="#888" font-size="11">' + w.amount_ml + ' мл</text>';
                     });
                     bars += '<text x="' + PAD + '" y="' + (H - 4) + '" fill="#aaa" font-size="10">Ціль: ' + waterTarget + 'мл</text>';
                     waterEl.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:auto;display:block;" xmlns="http://www.w3.org/2000/svg">' + bars + '</svg>';
