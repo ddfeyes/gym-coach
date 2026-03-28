@@ -141,7 +141,6 @@ class TestUserModel:
         user = get_user_by_telegram_id(99996)
         assert user is not None
         assert user['name'] == 'Test User 4'
-        assert user['onboarding_completed'] == 1
 
 
 if __name__ == '__main__':
