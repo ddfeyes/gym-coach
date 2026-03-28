@@ -134,6 +134,25 @@ def get_progress():
         for r in reversed(water_rows)
     ]
 
+    # Nutrition history — last 7 days summed by date
+    nutrition_rows = db.execute("""
+        SELECT date, SUM(calories) as total_calories, SUM(protein) as total_protein,
+               SUM(carbs) as total_carbs, SUM(fat) as total_fat
+        FROM nutrition_logs
+        WHERE user_id = ?
+        GROUP BY date
+        ORDER BY date DESC
+        LIMIT 7
+    """, (user_id,)).fetchall()
+
+    nutrition_history = [
+        {"date": r["date"], "calories": round(r["total_calories"] or 0),
+         "protein": round(r["total_protein"] or 0),
+         "carbs": round(r["total_carbs"] or 0),
+         "fat": round(r["total_fat"] or 0)}
+        for r in reversed(nutrition_rows)
+    ]
+
     db.close()
 
     return jsonify({
@@ -144,4 +163,5 @@ def get_progress():
         "streak_weeks": streak,
         "sleep_history": sleep_history,
         "water_history": water_history,
+        "nutrition_history": nutrition_history,
     })
