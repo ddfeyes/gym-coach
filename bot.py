@@ -18,7 +18,7 @@ def handle_telegram_update(update_data: dict) -> dict:
         return _handle_help(chat_id)
     if text.startswith('/stats'):
         return _handle_stats(chat_id)
-    if text.startswith('/today') or text.startswith('/stats'):
+    if text.startswith('/today'):
         return _handle_today(chat_id)
     if text.startswith('/program'):
         return _handle_program(chat_id)
@@ -36,6 +36,8 @@ def handle_telegram_update(update_data: dict) -> dict:
         return _handle_weight(chat_id, text)
     if text.startswith('/measure'):
         return _handle_measure(chat_id, text)
+    if text.startswith('/sleep'):
+        return _handle_sleep(chat_id, text)
     if text.startswith('/tdee'):
         return _handle_tdee(chat_id)
 
@@ -89,6 +91,7 @@ def _handle_help(chat_id: int) -> dict:
         "/week — Тижнева статистика\n"
         "/month — Місяцна статистика (30 днів)\n"
         "/stats — Загальна статистика (тренування, вага, заміри)\n"
+        "/sleep — Переглянути або записати сон\n"
         "/tdee — Добова норма калорій та макроси\n"
         "/program — Твоя тренувальна програма\n"
         "/log <опис> — Швидко залогировать прийом їжі\n"
@@ -1118,6 +1121,119 @@ def _handle_measure(chat_id: int, text: str) -> dict:
             "method": "sendMessage",
             "chat_id": chat_id,
             "text": "❌ Не вдалося завантажити дані про заміри: " + str(e),
+        }
+
+def _handle_sleep(chat_id: int, text: str) -> dict:
+    """Handle /sleep command — view or log sleep data.
+    /sleep — show 7-day sleep summary
+    /sleep 7.5 — log 7.5h sleep (quality=3 default)
+    /sleep 7.5 4 — log 7.5h with quality 4/5
+    /sleep 8 2026-03-27 — log 8h for specific date
+    """
+    user = _get_user(chat_id)
+    if not user or not user.get('onboarding_completed'):
+        return {
+            "method": "sendMessage",
+            "chat_id": chat_id,
+            "text": "👋 Ти ще не пройшов онбординг! Натисни /start щоб почати.",
+        }
+
+    try:
+        from models.sleep_log import log_sleep, get_sleep_summary
+        from datetime import date, timedelta
+
+        parts = text.split()
+        log_date = str(date.today())
+        log_hours = None
+        log_quality = 3
+
+        for part in parts[1:]:
+            if '-' in part and len(part) == 10 and part[4] == '-' and part[7] == '-':
+                log_date = part
+            elif '.' in part:
+                try:
+                    hours = float(part)
+                    if 0 < hours <= 24:
+                        log_hours = hours
+                except ValueError:
+                    pass
+            else:
+                try:
+                    q = int(part)
+                    if 1 <= q <= 5:
+                        log_quality = q
+                except ValueError:
+                    pass
+
+        # Log if hours provided
+        if log_hours is not None:
+            try:
+                log_sleep(user['id'], hours=log_hours, quality=log_quality, log_date=log_date)
+            except Exception as e:
+                return {
+                    "method": "sendMessage",
+                    "chat_id": chat_id,
+                    "text": "❌ Не вдалося записати сон: " + str(e),
+                }
+
+            quality_emoji = '⭐' * log_quality + '☆' * (5 - log_quality)
+            date_str = "сьогодні" if log_date == str(date.today()) else log_date
+            return {
+                "method": "sendMessage",
+                "chat_id": chat_id,
+                "text": "😴 *Сон записано!*\n📅 " + date_str + "\n⏱️ " + str(log_hours) + " год\n" + quality_emoji,
+                "parse_mode": "Markdown",
+            }
+
+        # Show 7-day summary
+        summary = get_sleep_summary(user['id'], days=7)
+        history = summary.get('entries', [])
+
+        lines = ["😴 *Сон — останні 7 днів*\n"]
+
+        avg_h = summary.get('average_hours', 0)
+        avg_q = summary.get('average_quality', 0)
+        if avg_h > 0:
+            quality_stars = '⭐' * round(avg_q) + '☆' * (5 - round(avg_q))
+            lines.append("📊 Середнє: *" + str(avg_h) + "* год | Якість: " + quality_stars)
+        else:
+            lines.append("📊 Немає даних за останні 7 днів")
+
+        if history:
+            lines.append("")
+            day_names = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Нд']
+            for entry in reversed(history):
+                d = date.fromisoformat(entry['date'])
+                day_name = day_names[d.weekday()]
+                day_str = d.strftime('%d.%m')
+                h = entry.get('hours', 0)
+                q = entry.get('quality', 0)
+                if h > 0:
+                    stars = '⭐' * q + '☆' * (5 - q)
+                    # Mood based on hours
+                    if h >= 8:
+                        mood = '✅'
+                    elif h >= 6:
+                        mood = '🔶'
+                    else:
+                        mood = '⚠️'
+                    lines.append(f"  {mood} {day_str} ({day_name}): *{h}* год {stars}")
+
+        lines.append("\n💡 /sleep 7.5 — записати сон")
+        lines.append("💡 /sleep 7.5 4 — з якістю 4/5")
+        return {
+            "method": "sendMessage",
+            "chat_id": chat_id,
+            "text": "\n".join(lines),
+            "parse_mode": "Markdown",
+        }
+
+    except Exception as e:
+        import traceback
+        return {
+            "method": "sendMessage",
+            "chat_id": chat_id,
+            "text": "❌ Не вдалося завантажити дані про сон: " + str(e),
         }
 
 def _handle_tdee(chat_id: int) -> dict:
