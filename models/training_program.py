@@ -8,7 +8,7 @@ def create_training_program(user_id: int, name: str, schedule: list, exercises: 
     cursor = db.cursor()
     cursor.execute(
         "INSERT INTO training_programs (user_id, name, program_type, schedule, exercises, notes) VALUES (?, ?, ?, ?, ?, ?)",
-        (user_id, name, json.dumps(schedule, ensure_ascii=False), json.dumps(exercises, ensure_ascii=False), program_type, notes),
+        (user_id, name, program_type, json.dumps(schedule, ensure_ascii=False), json.dumps(exercises, ensure_ascii=False), notes),
     )
     db.commit()
     prog_id = cursor.lastrowid
@@ -27,8 +27,8 @@ def get_active_training_program(user_id: int) -> dict | None:
     if not row:
         return None
     prog = dict(row)
-    prog['schedule'] = json.loads(prog['schedule'])
-    prog['exercises'] = json.loads(prog['exercises'])
+    prog['schedule'] = json.loads(prog['schedule']) if prog.get('schedule') else []
+    prog['exercises'] = json.loads(prog['exercises']) if prog.get('exercises') else []
     return prog
 
 
@@ -43,8 +43,8 @@ def get_training_programs(user_id: int, limit: int = 10) -> list:
     results = []
     for row in rows:
         prog = dict(row)
-        prog['schedule'] = json.loads(prog['schedule'])
-        prog['exercises'] = json.loads(prog['exercises'])
+        prog['schedule'] = json.loads(prog['schedule']) if prog.get('schedule') else []
+        prog['exercises'] = json.loads(prog['exercises']) if prog.get('exercises') else []
         results.append(prog)
     return results
 
