@@ -449,8 +449,8 @@ def _handle_tdee(chat_id: int) -> dict:
             'muscle_gain': '📈 Набір маси (+300 ккал)',
             'fat_loss': '🔥 Жироспалення (-500 ккал)',
             'strength': '💪 Сила (TDEE)',
-            'health': '❤️ Здоров'я (TDEE)',
-            'recomposition': '♻️ Рекомпозиція (TDEE)',
+            'health': "❤️ Здоров'я (TDEE)",
+            'recomposition': "♻️ Рекомпозиція (TDEE)",
         }
 
         lines = ["🎯 *Твої цілі*\n"]
