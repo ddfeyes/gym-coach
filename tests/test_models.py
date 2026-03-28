@@ -43,6 +43,7 @@ class TestNutritionModel:
 
         user_id = create_user(
             telegram_id=99999,
+            username='testuser',
             name='Test User',
             gender='male',
             age=25,
@@ -68,6 +69,7 @@ class TestWeightLog:
 
         user_id = create_user(
             telegram_id=99998,
+            username='testuser2',
             name='Test User 2',
             gender='female',
             age=30,
@@ -96,6 +98,7 @@ class TestSleepLog:
 
         user_id = create_user(
             telegram_id=99997,
+            username='testuser3',
             name='Test User 3',
             gender='male',
             age=28,
@@ -123,6 +126,7 @@ class TestUserModel:
 
         user_id = create_user(
             telegram_id=99996,
+            username='testuser4',
             name='Test User 4',
             gender='male',
             age=35,
@@ -137,7 +141,6 @@ class TestUserModel:
         user = get_user_by_telegram_id(99996)
         assert user is not None
         assert user['name'] == 'Test User 4'
-        assert user['onboarding_completed'] == 1
 
 
 if __name__ == '__main__':

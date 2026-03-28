@@ -19,11 +19,10 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install pytest flask
+          pip install pytest -r requirements.txt
 
       - name: Run tests
         run: |
-          cd /home/hui20metrov/gym-coach
           python -c "from database import create_tables; create_tables()"
           pytest tests/ -v --tb=short
         env:
