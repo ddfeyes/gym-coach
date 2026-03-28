@@ -40,6 +40,8 @@ def handle_telegram_update(update_data: dict) -> dict:
         return _handle_sleep(chat_id, text)
     if text.startswith('/next'):
         return _handle_next(chat_id)
+    if text.startswith('/meals'):
+        return _handle_meals(chat_id)
     if text.startswith('/tdee'):
         return _handle_tdee(chat_id)
 
@@ -98,6 +100,7 @@ def _handle_help(chat_id: int) -> dict:
         "/program — Твоя тренувальна програма\n"
         "/next — Що тренувати сьогодні\n"
         "/log <опис> — Швидко залогировать прийом їжі\n"
+        "/meals — Сьогоднішній раціон (всі прийоми)\n"
         "/workout — Залогировать тренування\n"
         "/water [мл] — Додати води або переглянути\n"
         "/weight [кг] — Записати або переглянути вагу\n"
@@ -1336,6 +1339,109 @@ def _handle_next(chat_id: int) -> dict:
             "method": "sendMessage",
             "chat_id": chat_id,
             "text": "❌ Не вдалося завантажити програму: " + str(e),
+        }
+
+def _handle_meals(chat_id: int) -> dict:
+    """Handle /meals command — show today's logged meals with calorie breakdown."""
+    user = _get_user(chat_id)
+    if not user or not user.get('onboarding_completed'):
+        return {
+            "method": "sendMessage",
+            "chat_id": chat_id,
+            "text": "👋 Ти ще не пройшов онбординг! Натисни /start щоб почати.",
+        }
+
+    try:
+        from models.nutrition import get_daily_summary
+        from datetime import date
+
+        today = str(date.today())
+        summary = get_daily_summary(user['id'], today)
+        meals = summary.get('meals', [])
+        macros = _calculate_tdee(user)
+
+        lines = ["🍽️ *Сьогоднішній раціон*\n"]
+
+        if not meals:
+            lines.append("Ще немає записів.")
+            lines.append(f"\n💡 /log <опис> — додати прийом їжі")
+            lines.append(f"Приклад: /log 2 яйця + тост + кава")
+            return {
+                "method": "sendMessage",
+                "chat_id": chat_id,
+                "text": "\n".join(lines),
+                "parse_mode": "Markdown",
+            }
+
+        # Group by meal type
+        meal_order = ['breakfast', 'lunch', 'dinner', 'snack']
+        meal_labels = {
+            'breakfast': '☀️ Сніданок',
+            'lunch': '🌇 Обід',
+            'dinner': '🌙 Вечеря',
+            'snack': '🍎 Перекус',
+        }
+        by_type = {m: [] for m in meal_order}
+        for m in meals:
+            mt = m.get('meal_type', 'snack')
+            if mt not in by_type:
+                by_type[mt] = []
+            by_type[mt].append(m)
+
+        total_cal = summary.get('total_calories', 0)
+        total_prot = summary.get('total_protein', 0)
+        total_carbs = summary.get('total_carbs', 0)
+        total_fat = summary.get('total_fat', 0)
+        target = macros.get('target', 2000)
+
+        # Show each meal type
+        for mtype in meal_order:
+            meal_list = by_type.get(mtype, [])
+            if not meal_list:
+                continue
+            label = meal_labels.get(mtype, mtype.capitalize())
+            lines.append(f"\n{label}:")
+            for meal in meal_list:
+                fname = meal.get('food_name', 'Невідомо')
+                cal = meal.get('calories', 0)
+                prot = meal.get('protein', 0)
+                lines.append(f"  • {fname} — *{cal}* ккал" +
+                             (f" | Б:{prot}г" if prot else ""))
+            meal_cal = sum(m.get('calories', 0) for m in meal_list)
+            lines.append(f"  └ Всього: *{meal_cal}* ккал")
+
+        # Summary
+        remaining = target - total_cal
+        pct = round(total_cal / target * 100) if target > 0 else 0
+        bar_len = 10
+        filled = min(bar_len, round(bar_len * total_cal / target)) if target > 0 else 0
+        bar = '█' * filled + '░' * (bar_len - filled)
+
+        lines.append(f"\n━━━━━━━━━━━━━━")
+        lines.append(f"Σ *{total_cal}* / {target} ккал ({pct}%)")
+        lines.append(f"[{bar}]")
+        if remaining > 0:
+            lines.append(f"Залишилось: *{remaining}* ккал")
+        elif remaining < 0:
+            lines.append(f"⚠️ Перебір: *{-remaining}* ккал")
+        else:
+            lines.append("✅ Точно по плану!")
+
+        lines.append(f"\n🥩 Б: {round(total_prot)}г | В: {round(total_carbs)}г | Ж: {round(total_fat)}г")
+
+        return {
+            "method": "sendMessage",
+            "chat_id": chat_id,
+            "text": "\n".join(lines),
+            "parse_mode": "Markdown",
+        }
+
+    except Exception as e:
+        import traceback
+        return {
+            "method": "sendMessage",
+            "chat_id": chat_id,
+            "text": "❌ Не вдалося завантажити дані: " + str(e),
         }
 
 def _handle_tdee(chat_id: int) -> dict:
