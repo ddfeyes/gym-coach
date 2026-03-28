@@ -176,14 +176,18 @@ def _handle_today(chat_id: int) -> dict:
 
     try:
         from models.nutrition import get_daily_summary
-        from models.sleep_log import get_latest_weight
+        from models.sleep_log import get_latest_weight, get_sleep_history
         from models.training_session import get_sessions_by_date_range
+        from models.water_log import get_daily_water
 
         today = str(__import__('datetime').date.today())
         nutrition = get_daily_summary(user['id'], today)
         latest_weight = get_latest_weight(user['id'])
         today_sessions = get_sessions_by_date_range(user['id'], today, today)
         macros = _calculate_tdee(user)
+        today_water = get_daily_water(user['id'], today)
+        sleep_history = get_sleep_history(user['id'], 1)
+        today_sleep = sleep_history[0] if sleep_history else None
 
         lines = ["📊 *Сьогодні:*"]
 
@@ -203,6 +207,21 @@ def _handle_today(chat_id: int) -> dict:
 
         if latest_weight:
             lines.append(f"⚖️ Вага: {latest_weight['weight_kg']} кг")
+
+        # Water (target 2500ml)
+        water_ml = today_water.get('amount_ml', 0)
+        water_target = 2500
+        if water_ml > 0:
+            lines.append(f"💧 {water_ml} / {water_target} мл")
+        else:
+            lines.append(f"💧 0 / {water_target} мл")
+
+        # Sleep
+        if today_sleep:
+            hours = today_sleep.get('hours', 0)
+            quality = today_sleep.get('quality', 0)
+            q_stars = "⭐" * quality if quality else "-"
+            lines.append(f"😴 Сон: {hours} год {q_stars}")
 
         if today_sessions:
             session = today_sessions[0]
