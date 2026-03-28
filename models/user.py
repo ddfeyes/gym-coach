@@ -63,3 +63,29 @@ def update_user(user_id, **fields):
     )
     db.commit()
     db.close()
+
+
+def set_calorie_target(user_id: int, calorie_target: int) -> None:
+    """Set or update user's calorie target override."""
+    db = get_db()
+    try:
+        db.execute("ALTER TABLE users ADD COLUMN calorie_target_override INTEGER")
+    except Exception:
+        pass  # column already exists
+    db.execute(
+        "UPDATE users SET calorie_target_override = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+        (calorie_target, user_id)
+    )
+    db.commit()
+    db.close()
+
+
+def get_calorie_target(user_id: int) -> int | None:
+    """Get user's calorie target override if set."""
+    db = get_db()
+    row = db.execute(
+        "SELECT calorie_target_override FROM users WHERE id = ?",
+        (user_id,)
+    ).fetchone()
+    db.close()
+    return row[0] if row else None

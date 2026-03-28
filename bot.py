@@ -50,6 +50,8 @@ def handle_telegram_update(update_data: dict) -> dict:
         return _handle_progress(chat_id)
     if text.startswith('/left'):
         return _handle_left(chat_id)
+    if text.startswith('/target'):
+        return _handle_target(chat_id, text)
     if text.startswith('/tdee'):
         return _handle_tdee(chat_id)
 
@@ -106,6 +108,7 @@ def _handle_help(chat_id: int) -> dict:
         "/sleep — Переглянути або записати сон\n"
         "/tdee — Добова норма калорій та макроси\n"
         "/left — Скільки залишилось з'їсти сьогодні\n"
+        "/target — Встановити добову ціль калорій\n"
         "/profile — Твій профіль та біо дані\n"
         "/day <дата> — Переглянути день (2026-03-25)\n"
         "/progress — Прогрес: вага, заміри, тренування\n"
@@ -191,6 +194,11 @@ def _calculate_tdee(user: dict) -> dict:
     fat_cal = fat_g * 9
     carbs_cal = max(0, target - protein_cal - fat_cal)
     carbs_g = carbs_cal / 4
+
+    # Override from manual target setting
+    override = user.get('calorie_target_override')
+    if override and override > 0:
+        target = override
 
     return {
         'tdee': round(tdee),
@@ -2008,6 +2016,99 @@ def _handle_left(chat_id: int) -> dict:
             "method": "sendMessage",
             "chat_id": chat_id,
             "text": "❌ Не вдалося розрахувати.",
+        }
+
+def _handle_target(chat_id: int, text: str) -> dict:
+    """Handle /target command — set or view daily calorie target.
+    Usage: /target — view current target, /target 2200 — set new target."""
+    user = _get_user(chat_id)
+    if not user or not user.get('onboarding_completed'):
+        return {
+            "method": "sendMessage",
+            "chat_id": chat_id,
+            "text": "👋 Ти ще не пройшов онбординг! Натисни /start щоб почати.",
+        }
+
+    try:
+        from models.user import set_calorie_target, get_calorie_target
+
+        parts = text.strip().split()
+        macros = _calculate_tdee(user)
+
+        if len(parts) == 1:
+            # View current target
+            current = get_calorie_target(user['id'])
+            override_note = ""
+            if current and current > 0:
+                override_note = f"\n⚙️ Встановлена вручну: {current} ккал"
+                lines = [
+                    "🎯 *Поточна денна норма калорій*\n",
+                    f"Розрахована: {macros['target']} ккал{override_note}",
+                    "",
+                    f"🥩 Білок: {macros['protein_g']} г",
+                    f"🌾 Вуглеводи: {macros['carbs_g']} г",
+                    f"🧈 Жири: {macros['fat_g']} г",
+                    "",
+                    "💡 /target <число> — змінити ціль",
+                ]
+            else:
+                lines = [
+                    "🎯 *Поточна денна норма калорій*\n",
+                    f"{macros['target']} ккал (розрахована)",
+                    "",
+                    f"🥩 Білок: {macros['protein_g']} г",
+                    f"🌾 Вуглеводи: {macros['carbs_g']} г",
+                    f"🧈 Жири: {macros['fat_g']} г",
+                    "",
+                    "💡 /target <число> — встановити свою ціль",
+                ]
+            return {
+                "method": "sendMessage",
+                "chat_id": chat_id,
+                "text": "\n".join(lines),
+                "parse_mode": "Markdown",
+            }
+        else:
+            # Set new target
+            try:
+                new_target = int(parts[1])
+                if new_target < 500 or new_target > 10000:
+                    return {
+                        "method": "sendMessage",
+                        "chat_id": chat_id,
+                        "text": "❌ Ціль має бути від 500 до 10000 ккал.",
+                    }
+            except ValueError:
+                return {
+                    "method": "sendMessage",
+                    "chat_id": chat_id,
+                    "text": "❌ Невірний формат. Приклад: /target 2200",
+                }
+
+            set_calorie_target(user['id'], new_target)
+            lines = [
+                "✅ *Ціль встановлена*\n",
+                f"Нова денна норма: {new_target} ккал",
+                "",
+                f"🥩 Білок: {macros['protein_g']} г",
+                f"🌾 Вуглеводи: {macros['carbs_g']} г",
+                f"🧈 Жири: {macros['fat_g']} г",
+                "",
+                "❌ Щоб скасувати — /target 0",
+            ]
+            return {
+                "method": "sendMessage",
+                "chat_id": chat_id,
+                "text": "\n".join(lines),
+                "parse_mode": "Markdown",
+            }
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return {
+            "method": "sendMessage",
+            "chat_id": chat_id,
+            "text": "❌ Не вдалося встановити ціль.",
         }
 
 def _handle_tdee(chat_id: int) -> dict:
