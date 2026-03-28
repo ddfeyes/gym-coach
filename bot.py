@@ -38,6 +38,8 @@ def handle_telegram_update(update_data: dict) -> dict:
         return _handle_measure(chat_id, text)
     if text.startswith('/sleep'):
         return _handle_sleep(chat_id, text)
+    if text.startswith('/next'):
+        return _handle_next(chat_id)
     if text.startswith('/tdee'):
         return _handle_tdee(chat_id)
 
@@ -94,6 +96,7 @@ def _handle_help(chat_id: int) -> dict:
         "/sleep — Переглянути або записати сон\n"
         "/tdee — Добова норма калорій та макроси\n"
         "/program — Твоя тренувальна програма\n"
+        "/next — Що тренувати сьогодні\n"
         "/log <опис> — Швидко залогировать прийом їжі\n"
         "/workout — Залогировать тренування\n"
         "/water [мл] — Додати води або переглянути\n"
@@ -1234,6 +1237,105 @@ def _handle_sleep(chat_id: int, text: str) -> dict:
             "method": "sendMessage",
             "chat_id": chat_id,
             "text": "❌ Не вдалося завантажити дані про сон: " + str(e),
+        }
+
+def _handle_next(chat_id: int) -> dict:
+    """Handle /next command — show today's scheduled workout from the training program.
+    The schedule is assumed to align with Mon=0, Sun=6."""
+    user = _get_user(chat_id)
+    if not user or not user.get('onboarding_completed'):
+        return {
+            "method": "sendMessage",
+            "chat_id": chat_id,
+            "text": "👋 Ти ще не пройшов онбординг! Натисни /start щоб почати.",
+        }
+
+    try:
+        from models.training_program import get_active_training_program
+        from datetime import date
+
+        program = get_active_training_program(user['id'])
+        if not program:
+            return {
+                "method": "sendMessage",
+                "chat_id": chat_id,
+                "text": "🏋️ У тебе ще немає програми! Відкрий додаток і згенеруй свою першу програму.",
+            }
+
+        schedule = program.get('schedule', [])
+        exercises = program.get('exercises', [])
+        program_name = program.get('name', 'Тренувальна програма')
+
+        if not schedule:
+            return {
+                "method": "sendMessage",
+                "chat_id": chat_id,
+                "text": "🏋️ Програма порожня. Відкрий додаток щоб налаштувати вправи.",
+            }
+
+        # Build exercise list per day (1-indexed, matches schedule positions)
+        by_day = {}
+        for ex in exercises:
+            d = ex.get('day', 1)
+            if d not in by_day:
+                by_day[d] = []
+            by_day[d].append(ex)
+
+        # Map today's weekday (0=Mon) to schedule index
+        today = date.today()
+        today_weekday = today.weekday()  # 0=Mon ... 6=Sun
+
+        if today_weekday < len(schedule):
+            day_label = schedule[today_weekday]
+            day_num = today_weekday + 1  # 1-indexed for exercises
+        else:
+            # Program has fewer days than a week — use modulo
+            day_idx = today_weekday % len(schedule)
+            day_label = schedule[day_idx]
+            day_num = day_idx + 1
+
+        day_exercises = by_day.get(day_num, [])
+        day_names_ukr = ['Понеділок', 'Вівторок', 'Середа', 'Четвер', "П'ятниця", 'Субота', 'Неділя']
+        day_name = day_names_ukr[today_weekday]
+        today_str = "Сьогодні (" + day_name + ")"
+
+        lines = [f"🏋️ *{program_name}*\n📅 {today_str}\n📋 {day_label}"]
+
+        if day_exercises:
+            # Group by muscle group for cleaner display
+            by_muscle = {}
+            for ex in day_exercises:
+                mg = ex.get('muscle_group', 'Інше')
+                if mg not in by_muscle:
+                    by_muscle[mg] = []
+                by_muscle[mg].append(ex)
+
+            for mg, exs in by_muscle.items():
+                lines.append(f"\n💪 {mg}:")
+                for ex in exs:
+                    sets_reps = f"{ex['sets']}×{ex['reps']}"
+                    rest = ex.get('rest_seconds')
+                    rest_str = f" | відпочинок {rest}с" if rest else ""
+                    lines.append(f"  • {ex['exercise']} — {sets_reps}{rest_str}")
+        else:
+            lines.append("\n🌿 Відпочинок")
+
+        lines.append(f"\n💡 /workout — залогировать тренування")
+        lines.append("💡 /program — повна програма")
+
+        return {
+            "method": "sendMessage",
+            "chat_id": chat_id,
+            "text": "\n".join(lines),
+            "parse_mode": "Markdown",
+        }
+
+    except Exception as e:
+        import traceback
+        return {
+            "method": "sendMessage",
+            "chat_id": chat_id,
+            "text": "❌ Не вдалося завантажити програму: " + str(e),
         }
 
 def _handle_tdee(chat_id: int) -> dict:
