@@ -2342,20 +2342,18 @@ def _handle_inline_workout(chat_id: int, message_id: int, cq_id: str) -> dict:
 def _handle_inline_week(chat_id: int, message_id: int, cq_id: str) -> dict:
     """Show week stats (same as /week)."""
     result = _handle_week(chat_id)
+    result["method"] = "editMessageText"
     result["chat_id"] = chat_id
     result["message_id"] = message_id
-    if "method" in result:
-        del result["method"]
     return result
 
 
 def _handle_inline_progress(chat_id: int, message_id: int, cq_id: str) -> dict:
     """Show progress (same as /progress)."""
     result = _handle_progress(chat_id)
+    result["method"] = "editMessageText"
     result["chat_id"] = chat_id
     result["message_id"] = message_id
-    if "method" in result:
-        del result["method"]
     return result
 
 
