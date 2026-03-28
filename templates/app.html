@@ -529,6 +529,12 @@
                 <div id="progress-sleep"></div>
             </div>
 
+            <!-- Water Chart -->
+            <div class="card">
+                <div class="card-title">💧 Вода</div>
+                <div id="progress-water"></div>
+            </div>
+
             <!-- Measurements -->
             <div class="card">
                 <div class="card-title">📏 Вимірювання</div>
@@ -1592,6 +1598,30 @@
                         '<div class="profile-field"><span class="label">Якість</span><span class="value">' + (sh[0].quality || '-') + '/5</span></div>';
                 } else {
                     sleepEl.innerHTML = '<div style="color:#888;font-size:13px">Немає даних про сон</div>';
+                }
+
+                // Water — horizontal bar chart (last 7 days)
+                const waterEl = document.getElementById('progress-water');
+                const wh = d.water_history || [];
+                const waterTarget = 2500;
+                if (wh.length > 0) {
+                    const maxWater = Math.max.apply(null, wh.map(function(w) { return w.amount_ml || 0; }).concat([waterTarget]));
+                    const W = 340, H = wh.length * 32 + 16, PAD = 8;
+                    const barH = 18;
+                    let bars = '';
+                    wh.forEach(function(w, i) {
+                        var y = PAD + i * 32;
+                        var pct = Math.min((w.amount_ml / waterTarget) * 100, 100);
+                        var barW = (pct / 100) * (W - PAD * 2 - 50);
+                        var fillColor = pct >= 100 ? '#22c55e' : '#3b82f6';
+                        bars += '<rect x="' + PAD + '" y="' + y + '" width="' + barW.toFixed(1) + '" height="' + barH + '" rx="4" fill="' + fillColor + '" opacity="0.8"/>';
+                        bars += '<text x="' + (PAD + barW + 6) + '" y="' + (y + 13) + '" fill="#888" font-size="11">' + w.amount_ml + 'мл</text>';
+                        bars += '<text x="' + (W - PAD) + '" y="' + (y + 13) + '" text-anchor="end" fill="#aaa" font-size="10">' + (w.date || '').substring(5) + '</text>';
+                    });
+                    bars += '<text x="' + PAD + '" y="' + (H - 4) + '" fill="#aaa" font-size="10">Ціль: ' + waterTarget + 'мл</text>';
+                    waterEl.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:auto;display:block;" xmlns="http://www.w3.org/2000/svg">' + bars + '</svg>';
+                } else {
+                    waterEl.innerHTML = '<div style="color:#888;font-size:13px">Немає даних про воду</div>';
                 }
 
                 // Measurements — SVG line charts
