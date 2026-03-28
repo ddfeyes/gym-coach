@@ -131,23 +131,52 @@ def generate_program():
 
     # Parse JSON from response
     try:
-        # Strip markdown code blocks if present
+        import re as _re
         text = response_text.strip()
-        if text.startswith('```'):
-            text = text.split('```')[1]
-            if text.startswith('json'):
-                text = text[4:]
-        program_data = json.loads(text.strip())
-    except json.JSONDecodeError:
+        # Strip markdown code blocks
+        if '```' in text:
+            parts = text.split('```')
+            for part in parts:
+                part = part.strip()
+                if part.startswith('json'):
+                    part = part[4:].strip()
+                try:
+                    program_data = json.loads(part)
+                    break
+                except Exception:
+                    continue
+            else:
+                raise json.JSONDecodeError("no valid json block", text, 0)
+        else:
+            # Try to extract JSON object directly
+            m = _re.search(r'\{.*\}', text, _re.DOTALL)
+            if m:
+                program_data = json.loads(m.group(0))
+            else:
+                program_data = json.loads(text)
+    except (json.JSONDecodeError, Exception):
         return jsonify({"error": "Failed to parse AI response", "raw": response_text}), 500
+
+    # Normalize schedule: if dict, convert days list to strings
+    schedule = program_data.get('schedule', [])
+    if isinstance(schedule, dict):
+        days = schedule.get('days', [])
+        schedule = [f"День {i+1}: {d}" for i, d in enumerate(days)] if days else []
+    elif not isinstance(schedule, list):
+        schedule = []
+
+    # Normalize exercises: must be list of dicts
+    exercises = program_data.get('exercises', [])
+    if not isinstance(exercises, list):
+        exercises = []
 
     # Save to DB
     try:
         program_id = create_training_program(
             user_id=user_id,
             name=program_data.get('name', 'Training Program'),
-            schedule=program_data.get('schedule', []),
-            exercises=program_data.get('exercises', []),
+            schedule=schedule,
+            exercises=exercises,
             program_type=program_data.get('program_type', 'split'),
             notes=program_data.get('notes', ''),
         )

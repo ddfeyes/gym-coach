@@ -77,18 +77,43 @@ def _generate_training_async(user_id: int):
                 context={},
             )
 
+            import re as _re
             text = response.strip()
-            if text.startswith('```'):
-                text = text.split('```')[1]
-                if text.startswith('json'):
-                    text = text[4:]
-            program_data = json.loads(text.strip())
+            if '```' in text:
+                parts = text.split('```')
+                program_data = None
+                for part in parts:
+                    part = part.strip()
+                    if part.startswith('json'):
+                        part = part[4:].strip()
+                    try:
+                        program_data = json.loads(part)
+                        break
+                    except Exception:
+                        continue
+                if not program_data:
+                    raise ValueError("no valid json block in response")
+            else:
+                m = _re.search(r'\{.*\}', text, _re.DOTALL)
+                program_data = json.loads(m.group(0) if m else text)
+
+            # Normalize schedule
+            schedule = program_data.get('schedule', [])
+            if isinstance(schedule, dict):
+                days = schedule.get('days', [])
+                schedule = [f"День {i+1}: {d}" for i, d in enumerate(days)] if days else []
+            elif not isinstance(schedule, list):
+                schedule = []
+
+            exercises = program_data.get('exercises', [])
+            if not isinstance(exercises, list):
+                exercises = []
 
             program_id = create_training_program(
                 user_id=user_id,
                 name=program_data.get('name', 'Training Program'),
-                schedule=program_data.get('schedule', []),
-                exercises=program_data.get('exercises', []),
+                schedule=schedule,
+                exercises=exercises,
                 program_type=program_data.get('program_type', 'split'),
                 notes=program_data.get('notes', ''),
             )
