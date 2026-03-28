@@ -98,6 +98,19 @@ def get_progress():
     if training_per_week:
         streak = len([t for t in training_per_week if t['count'] > 0])
 
+    # Sleep history — last 14 days
+    sleep_rows = db.execute("""
+        SELECT hours, quality, logged_at FROM sleep_logs
+        WHERE user_id = ?
+        ORDER BY logged_at DESC
+        LIMIT 14
+    """, (user_id,)).fetchall()
+
+    sleep_history = [
+        {"date": r[2][:10], "hours": r[0], "quality": r[1]}
+        for r in reversed(sleep_rows)
+    ]
+
     db.close()
 
     return jsonify({
@@ -106,4 +119,5 @@ def get_progress():
         "training_per_week": training_per_week,
         "active_program": active_program,
         "streak_weeks": streak,
+        "sleep_history": sleep_history,
     })

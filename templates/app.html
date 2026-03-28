@@ -523,6 +523,12 @@
                 <div id="progress-training"></div>
             </div>
 
+            <!-- Sleep Chart -->
+            <div class="card">
+                <div class="card-title">😴 Сон</div>
+                <div id="progress-sleep"></div>
+            </div>
+
             <!-- Measurements -->
             <div class="card">
                 <div class="card-title">📏 Вимірювання</div>
@@ -1540,6 +1546,52 @@
                     trainingEl.innerHTML = heatmapHTML;
                 } else {
                     trainingEl.innerHTML = '<div style="color:#888;font-size:13px">Немає даних про тренування</div>';
+                }
+
+                // Sleep SVG line chart
+                const sleepEl = document.getElementById('progress-sleep');
+                const sh = d.sleep_history || [];
+                if (sh.length > 1) {
+                    const W = 340, H = 100, PAD = 28;
+                    const hours = sh.map(function(s) { return parseFloat(s.hours); });
+                    const dates = sh.map(function(s) { return s.date; });
+                    const minH = Math.max(0, Math.min.apply(null, hours) - 1);
+                    const maxH = Math.max.apply(null, hours) + 1;
+                    const range = (maxH - minH) || 1;
+                    const chartW = W - PAD * 2;
+                    const chartH = H - PAD * 2;
+                    var points = hours.map(function(h, i) {
+                        var x = PAD + (i / (hours.length - 1)) * chartW;
+                        var y = PAD + chartH - ((h - minH) / range) * chartH;
+                        return x.toFixed(1) + ',' + y.toFixed(1);
+                    });
+                    var polyline = points.join(' ');
+                    var dots = hours.map(function(h, i) {
+                        var x = PAD + (i / (hours.length - 1)) * chartW;
+                        var y = PAD + chartH - ((h - minH) / range) * chartH;
+                        return '<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="3" fill="#a855f7"/>';
+                    }).join('');
+                    var yLabels = [];
+                    for (var si = 0; si <= 3; si++) {
+                        var val = minH + (range * si / 3);
+                        var y = PAD + chartH - (si / 3) * chartH;
+                        yLabels.push('<text x="' + (PAD - 4) + '" y="' + (y + 4).toFixed(1) + '" text-anchor="end" fill="#888" font-size="10">' + val.toFixed(1) + ' год</text>');
+                    }
+                    var xLabels = [];
+                    var showCount = Math.min(hours.length, 5);
+                    for (var xi = 0; xi < showCount; xi++) {
+                        var idx = Math.round(xi * (hours.length - 1) / (showCount - 1 || 1));
+                        var x = PAD + (idx / (hours.length - 1)) * chartW;
+                        xLabels.push('<text x="' + x.toFixed(1) + '" y="' + (H - 4) + '" text-anchor="middle" fill="#888" font-size="10">' + dates[idx].substring(5) + '</text>');
+                    }
+                    sleepEl.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:auto;display:block;" xmlns="http://www.w3.org/2000/svg">' +
+                        '<polyline points="' + polyline + '" fill="none" stroke="#a855f7" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>' +
+                        dots + yLabels.join('') + xLabels.join('') + '</svg>';
+                } else if (sh.length === 1) {
+                    sleepEl.innerHTML = '<div class="profile-field"><span class="label">Годин сну</span><span class="value">' + sh[0].hours + ' год</span></div>' +
+                        '<div class="profile-field"><span class="label">Якість</span><span class="value">' + (sh[0].quality || '-') + '/5</span></div>';
+                } else {
+                    sleepEl.innerHTML = '<div style="color:#888;font-size:13px">Немає даних про сон</div>';
                 }
 
                 // Measurements — SVG line charts
