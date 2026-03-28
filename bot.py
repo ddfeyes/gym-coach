@@ -22,6 +22,8 @@ def handle_telegram_update(update_data: dict) -> dict:
         return _handle_program(chat_id)
     if text.startswith('/log '):
         return _handle_log(chat_id, text[5:].strip())
+    if text.startswith('/workout'):
+        return _handle_workout(chat_id)
 
     # Wire AI chat for all other messages
     return _handle_ai_message(chat_id, text)
@@ -71,7 +73,8 @@ def _handle_help(chat_id: int) -> dict:
         "/help — Показати це меню\n"
         "/today — Сьогоднішній трекінг (калорії, сон)\n"
         "/program — Твоя тренувальна програма\n"
-        "/log <опис> — Швидко залогировать прийом їжі\n\n"
+        "/log <опис> — Швидко залогировать прийом їжі\n"
+        "/workout — Залогировать тренування\n\n"
         "💬 Або просто напиши мені — я відповім!"
     )
 
@@ -159,8 +162,8 @@ def _handle_program(chat_id: int) -> dict:
         }
 
     try:
-        from models.training_program import get_active_program
-        program = get_active_program(user['id'])
+        from models.training_program import get_active_training_program
+        program = get_active_training_program(user['id'])
         if not program:
             return {
                 "method": "sendMessage",
@@ -218,6 +221,46 @@ def _handle_log(chat_id: int, description: str) -> dict:
             "method": "sendMessage",
             "chat_id": chat_id,
             "text": "❌ Не вдалося додати. Спробуй пізніше.",
+        }
+
+
+def _handle_workout(chat_id: int) -> dict:
+    """Quick log a training session."""
+    user = _get_user(chat_id)
+    if not user or not user.get('onboarding_completed'):
+        return {
+            "method": "sendMessage",
+            "chat_id": chat_id,
+            "text": "👋 Спочатку пройди онбординг — натисни /start!",
+        }
+
+    try:
+        from models.training_session import log_training_session
+        from models.training_program import get_active_training_program
+
+        # Get active program if exists
+        program_id = None
+        active = get_active_training_program(user['id'])
+        if active:
+            program_id = active['id']
+
+        session_id = log_training_session(user['id'], program_id=program_id)
+
+        # Calculate total sessions
+        from models.training_session import get_training_sessions
+        sessions = get_training_sessions(user['id'], limit=100)
+        total = len(sessions)
+
+        return {
+            "method": "sendMessage",
+            "chat_id": chat_id,
+            "text": f"✅ Тренування залоговано!\nВсього тренувань: {total} 💪",
+        }
+    except Exception as e:
+        return {
+            "method": "sendMessage",
+            "chat_id": chat_id,
+            "text": "❌ Не вдалося залогировать. Спробуй пізніше.",
         }
 
 

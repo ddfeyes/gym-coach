@@ -66,10 +66,10 @@ def get_progress():
         if len(measurements[field]) < 10:
             measurements[field].insert(0, {"date": logged_at[:10], "value": value})
 
-    # Training frequency — count per week for last 8 weeks
+    # Training frequency — count per week for last 8 weeks (from actual sessions)
     training_rows = db.execute("""
-        SELECT strftime('%Y-%W', created_at) as week, COUNT(*) as count
-        FROM training_programs
+        SELECT strftime('%Y-%W', date) as week, COUNT(*) as count
+        FROM training_sessions
         WHERE user_id = ?
         GROUP BY week
         ORDER BY week DESC
