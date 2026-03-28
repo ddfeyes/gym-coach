@@ -1,0 +1,11 @@
+last_update: "2026-03-28T02:46:00Z"
+current_task: "Kaizen cycle — weight line chart"
+status: done
+change: "Replaced bar chart with SVG line chart for weight history in Progress tab"
+files_changed:
+  - templates/app.html (weight chart SVG)
+  - .github/workflows/test.yml (CI fix)
+  - tests/test_models.py (test fixes)
+PR: "#33"
+issue: "#32"
+next: "awaiting next kaizen cycle"
