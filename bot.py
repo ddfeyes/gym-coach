@@ -612,6 +612,13 @@ def _handle_workout(chat_id: int, raw_text: str = '') -> dict:
             "chat_id": chat_id,
             "text": "\n".join(lines),
             "parse_mode": "Markdown",
+            "reply_markup": json.dumps({
+                "inline_keyboard": [[
+                    {"text": "💧 Вода", "callback_data": "action:water"},
+                    {"text": "📊 Тиждень", "callback_data": "action:week"},
+                    {"text": "📈 Прогресс", "callback_data": "action:progress"},
+                ]],
+            }),
         }
 
     except Exception as e:
