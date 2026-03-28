@@ -1527,18 +1527,63 @@
                     trainingEl.innerHTML = '<div style="color:#888;font-size:13px">Немає даних про тренування</div>';
                 }
 
-                // Measurements
+                // Measurements — SVG line charts
                 const measEl = document.getElementById('progress-measurements');
                 const m = d.measurements || {};
                 const parts = ['biceps', 'chest', 'waist', 'hips', 'thighs'];
                 const labels = {biceps: 'Біцепси', chest: 'Груди', waist: 'Талія', hips: 'Стегна', thighs: 'Стегна'};
+                const colors = {biceps: '#6366f1', chest: '#f59e0b', waist: '#22c55e', hips: '#ec4899', thighs: '#3b82f6'};
                 let measHTML = '';
                 parts.forEach(function(p) {
                     const entries = m[p] || [];
-                    if (entries.length > 0) {
-                        const last = entries[entries.length - 1];
+                    if (entries.length === 0) return;
+                    const last = entries[entries.length - 1];
+                    if (entries.length === 1) {
                         measHTML += '<div class="profile-field"><span class="label">' + (labels[p] || p) + '</span><span class="value">' + last.value + ' см</span></div>';
+                        return;
                     }
+                    const W = 300, H = 70, PAD = 22;
+                    const values = entries.map(function(e) { return parseFloat(e.value); });
+                    const dates = entries.map(function(e) { return e.date; });
+                    const minV = Math.min.apply(null, values);
+                    const maxV = Math.max.apply(null, values);
+                    const range = (maxV - minV) || 1;
+                    const chartW = W - PAD * 2;
+                    const chartH = H - PAD * 2;
+                    var points = values.map(function(v, i) {
+                        var x = PAD + (i / (values.length - 1)) * chartW;
+                        var y = PAD + chartH - ((v - minV) / range) * chartH;
+                        return x.toFixed(1) + ',' + y.toFixed(1);
+                    });
+                    var polyline = points.join(' ');
+                    var dots = entries.map(function(e, i) {
+                        var x = PAD + (i / (values.length - 1)) * chartW;
+                        var y = PAD + chartH - ((parseFloat(e.value) - minV) / range) * chartH;
+                        return '<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="2.5" fill="' + (colors[p] || '#6366f1') + '"/>';
+                    }).join('');
+                    var yLabels = [];
+                    for (var step = 0; step <= 3; step++) {
+                        var val = minV + (range * step / 3);
+                        var y = PAD + chartH - (step / 3) * chartH;
+                        yLabels.push('<text x="' + (PAD - 3) + '" y="' + (y + 3).toFixed(1) + '" text-anchor="end" fill="#666" font-size="9">' + val.toFixed(1) + '</text>');
+                    }
+                    var xLabels = [];
+                    var showCount = Math.min(values.length, 4);
+                    for (var xi = 0; xi < showCount; xi++) {
+                        var idx = Math.round(xi * (values.length - 1) / (showCount - 1 || 1));
+                        var x = PAD + (idx / (values.length - 1)) * chartW;
+                        xLabels.push('<text x="' + x.toFixed(1) + '" y="' + (H - 3) + '" text-anchor="middle" fill="#666" font-size="9">' + dates[idx].substring(5) + '</text>');
+                    }
+                    measHTML += '<div style="margin-bottom:12px;">' +
+                        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">' +
+                        '<span style="font-size:13px;color:#a0a0a0">' + (labels[p] || p) + '</span>' +
+                        '<span style="font-size:14px;font-weight:600;color:' + (colors[p] || '#6366f1') + '">' + last.value + ' см</span></div>' +
+                        '<svg viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:auto;display:block;" xmlns="http://www.w3.org/2000/svg">' +
+                        '<polyline points="' + polyline + '" fill="none" stroke="' + (colors[p] || '#6366f1') + '" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>' +
+                        dots +
+                        yLabels.join('') +
+                        xLabels.join('') +
+                        '</svg></div>';
                 });
                 measEl.innerHTML = measHTML || '<div style="color:#888;font-size:13px">Немає даних</div>';
 
