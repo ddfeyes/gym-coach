@@ -1463,17 +1463,53 @@
                     progEl.innerHTML = '<div style="color:#888;font-size:13px">Немає активної програми</div>';
                 }
 
-                // Weight chart
+                // Weight chart — SVG line chart
                 const weightEl = document.getElementById('progress-weight');
                 const wh = d.weight_history || [];
                 if (wh.length > 0) {
-                    const minW = Math.min(...wh.map(w => w.weight_kg));
-                    const maxW = Math.max(...wh.map(w => w.weight_kg));
-                    const range = maxW - minW || 1;
-                    weightEl.innerHTML = wh.map(function(w) {
-                        const barW = Math.max(10, ((w.weight_kg - minW) / range) * 80 + 20);
-                        return '<div class="progress-bar-row"><span class="progress-label">' + w.date + '</span><div class="progress-bar-wrap"><div class="progress-bar-fill" style="width:' + barW + '%"></div></div><span class="progress-value">' + w.weight_kg + ' кг</span></div>';
+                    const W = 340, H = 120, PAD = 28;
+                    const weights = wh.map(function(w) { return parseFloat(w.weight_kg); });
+                    const dates = wh.map(function(w) { return w.date; });
+                    const minW = Math.min.apply(null, weights);
+                    const maxW = Math.max.apply(null, weights);
+                    const range = (maxW - minW) || 1;
+                    const chartW = W - PAD * 2;
+                    const chartH = H - PAD * 2;
+
+                    // Normalize to chart coords
+                    var points = weights.map(function(w, i) {
+                        var x = PAD + (i / (weights.length - 1 || 1)) * chartW;
+                        var y = PAD + chartH - ((w - minW) / range) * chartH;
+                        return x.toFixed(1) + ',' + y.toFixed(1);
+                    });
+                    var polyline = points.join(' ');
+                    var dots = weights.map(function(w, i) {
+                        var x = PAD + (i / (weights.length - 1 || 1)) * chartW;
+                        var y = PAD + chartH - ((w - minW) / range) * chartH;
+                        return '<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="3" fill="#6366f1"/>';
                     }).join('');
+                    // Y-axis labels
+                    var yLabels = [];
+                    for (var step = 0; step <= 4; step++) {
+                        var val = minW + (range * step / 4);
+                        var y = PAD + chartH - (step / 4) * chartH;
+                        yLabels.push('<text x="' + (PAD - 4) + '" y="' + (y + 4).toFixed(1) + '" text-anchor="end" fill="#888" font-size="10">' + val.toFixed(1) + '</text>');
+                    }
+                    // X-axis labels (show first, middle, last)
+                    var xLabels = [];
+                    var showCount = Math.min(weights.length, 5);
+                    for (var xi = 0; xi < showCount; xi++) {
+                        var idx = Math.round(xi * (weights.length - 1) / (showCount - 1 || 1));
+                        var x = PAD + (idx / (weights.length - 1 || 1)) * chartW;
+                        xLabels.push('<text x="' + x.toFixed(1) + '" y="' + (H - 4) + '" text-anchor="middle" fill="#888" font-size="10">' + dates[idx].substring(5) + '</text>');
+                    }
+
+                    weightEl.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:auto;display:block;" xmlns="http://www.w3.org/2000/svg">' +
+                        '<polyline points="' + polyline + '" fill="none" stroke="#6366f1" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>' +
+                        dots +
+                        yLabels.join('') +
+                        xLabels.join('') +
+                        '</svg>';
                 } else {
                     weightEl.innerHTML = '<div style="color:#888;font-size:13px">Немає даних про вагу</div>';
                 }
