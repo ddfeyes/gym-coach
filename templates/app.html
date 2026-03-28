@@ -741,6 +741,7 @@
                 <div class="quick-actions" id="quickActions">
                     <button class="qa-chip" onclick="qaLogMeal()">🥗 Лог їжі</button>
                     <button class="qa-chip" onclick="qaViewProgram()">🏋️ Програма</button>
+                    <button class="qa-chip" onclick="qaStartWorkout()">💪 Тренування</button>
                     <button class="qa-chip" onclick="qaNutrition()">📊 Нутриція</button>
                     <button class="qa-chip" onclick="qaRandomTip()">💡 Порада</button>
                     <button class="qa-chip" onclick="qaProgress()">📈 Прогрес</button>
@@ -1754,6 +1755,10 @@
         }
         function qaViewProgram() {
             switchTab('training');
+        }
+        function qaStartWorkout() {
+            switchTab('training');
+            setTimeout(() => showLogWorkout(), 100);
         }
         function qaNutrition() {
             document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
