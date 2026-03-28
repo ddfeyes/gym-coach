@@ -32,6 +32,8 @@ def handle_telegram_update(update_data: dict) -> dict:
         return _handle_week(chat_id)
     if text.startswith('/month'):
         return _handle_month(chat_id)
+    if text.startswith('/weight'):
+        return _handle_weight(chat_id, text)
     if text.startswith('/tdee'):
         return _handle_tdee(chat_id)
 
@@ -89,7 +91,8 @@ def _handle_help(chat_id: int) -> dict:
         "/program — Твоя тренувальна програма\n"
         "/log <опис> — Швидко залогировать прийом їжі\n"
         "/workout — Залогировать тренування\n"
-        "/water [мл] — Додати води або переглянути\n\n"
+        "/water [мл] — Додати води або переглянути\n"
+        "/weight [кг] — Записати або переглянути вагу\n\n"
         "💬 Або просто напиши мені — я відповім!"
     )
 
@@ -819,6 +822,141 @@ def _handle_month(chat_id: int) -> dict:
 
 
 
+
+def _handle_weight(chat_id: int, text: str) -> dict:
+    """Handle /weight command — show weight history or log new weight.
+    /weight — show latest weight + recent history
+    /weight 75.5 — log weight for today
+    /weight 75.5 2026-03-27 — log weight for specific date
+    """
+    user = _get_user(chat_id)
+    if not user or not user.get('onboarding_completed'):
+        return {
+            "method": "sendMessage",
+            "chat_id": chat_id,
+            "text": "👋 Ти ще не пройшов онбординг! Натисни /start щоб почати.",
+        }
+
+    try:
+        from models.weight_log import log_weight, get_weight_history, get_latest_weight
+        from datetime import date, timedelta
+
+        parts = text.split()
+        target_weight = user.get('target_weight')
+        unit = "кг"
+
+        # Parse command: /weight [value] [date]
+        log_date = None
+        weight_value = None
+
+        if len(parts) > 1:
+            # Try to parse weight value
+            try:
+                weight_value = float(parts[1].replace(',', '.'))
+            except ValueError:
+                weight_value = None
+
+            # Optional date argument
+            if len(parts) > 2:
+                log_date = parts[2].strip()
+
+        # Log weight if value provided
+        if weight_value:
+            if weight_value < 20 or weight_value > 500:
+                return {
+                    "method": "sendMessage",
+                    "chat_id": chat_id,
+                    "text": "⚠️ Нереалістична вага! Вкажи між 20 і 500 кг.",
+                }
+
+            actual_date = log_date if log_date else str(date.today())
+            log_weight(user['id'], weight_value, log_date=actual_date)
+
+            latest = get_latest_weight(user['id'])
+            latest_kg = latest['weight_kg'] if latest else weight_value
+
+            # Build response
+            lines = ["⚖️ Записано: *"+str(weight_value)+" "+unit+"*"]
+            lines.append("📅 Дата: " + actual_date)
+
+            if target_weight:
+                diff = latest_kg - target_weight
+                if diff > 0:
+                    lines.append("📊 До мети: *-"+str(round(diff, 1))+" "+unit+"* (залишилось)")
+                elif diff < 0:
+                    lines.append("📊 Перевищення мети на *+"+str(round(abs(diff), 1))+" "+unit+"*")
+                else:
+                    lines.append("📊 ✅ На цілі!")
+
+            lines.append("\n💡 Відкрий додаток щоб побачити графік!")
+            return {
+                "method": "sendMessage",
+                "chat_id": chat_id,
+                "text": "\n".join(lines),
+                "parse_mode": "Markdown",
+            }
+
+        # Show weight history
+        history = get_weight_history(user['id'], limit=30)
+        latest = get_latest_weight(user['id'])
+
+        lines = ["⚖️ *Вага*\n"]
+
+        if latest:
+            latest_date = date.fromisoformat(latest['date'])
+            days_ago = (date.today() - latest_date).days
+            age_str = "" if days_ago == 0 else (" ("+str(days_ago)+" дн. тому)" if days_ago > 0 else " (сьогодні)")
+            lines.append("Остання: *" + str(latest['weight_kg']) + " " + unit + "*" + age_str)
+        else:
+            lines.append("Немає даних. Додай першу вагу!")
+
+        if target_weight:
+            lines.append("🎯 Мета: " + str(target_weight) + " " + unit)
+
+        if history and len(history) > 1:
+            # Show last 7 entries
+            last7 = history[:7]
+            lines.append("\n📋 Останні записи:")
+            for entry in reversed(last7):
+                d = date.fromisoformat(entry['date'])
+                day_name = d.strftime("%d.%m")
+                w = entry['weight_kg']
+                # Compare to previous
+                prev = history[history.index(entry)+1]['weight_kg'] if history.index(entry) < len(history)-1 else w
+                diff = w - prev
+                if abs(diff) < 0.05:
+                    arrow = "→"
+                elif diff > 0:
+                    arrow = "↑"
+                else:
+                    arrow = "↓"
+                lines.append("  " + day_name + ": " + str(w) + " " + unit + " " + arrow)
+
+            # Show change over period
+            if len(history) >= 2:
+                oldest = history[-1]['weight_kg']
+                newest = history[0]['weight_kg']
+                change = newest - oldest
+                if abs(change) >= 0.1:
+                    if change > 0:
+                        lines.append("\n📈 Зміна: *+"+str(round(change, 1))+" "+unit+"* за "+str(len(history)-1)+" днів")
+                    else:
+                        lines.append("\n📉 Зміна: *"+str(round(change, 1))+" "+unit+"* за "+str(len(history)-1)+" днів")
+
+        lines.append("\n💡 /weight 75.5 — записати вагу")
+        return {
+            "method": "sendMessage",
+            "chat_id": chat_id,
+            "text": "\n".join(lines),
+            "parse_mode": "Markdown",
+        }
+
+    except Exception as e:
+        return {
+            "method": "sendMessage",
+            "chat_id": chat_id,
+            "text": "❌ Не вдалося завантажити дані про вагу.",
+        }
 
 def _handle_tdee(chat_id: int) -> dict:
     """Show calculated TDEE and macro targets."""
