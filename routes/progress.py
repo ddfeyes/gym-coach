@@ -38,65 +38,71 @@ def get_progress():
         return jsonify({"error": "User not found"}), 404
 
     db = get_db()
+    db.row_factory = sqlite3.Row
 
-    # Weight history — last 30 days
+    # Weight history — last 30 days (uses created_at, NOT logged_at)
     weight_rows = db.execute("""
-        SELECT weight_kg, logged_at FROM weight_logs
+        SELECT weight_kg, date FROM weight_logs
         WHERE user_id = ?
-        ORDER BY logged_at DESC
+        ORDER BY date DESC
         LIMIT 30
     """, (user_id,)).fetchall()
 
     weight_history = [
-        {"date": r[1][:10], "weight_kg": r[0]}
+        {"date": r["date"], "weight_kg": r["weight_kg"]}
         for r in reversed(weight_rows)
     ]
 
-    # Measurements — last 30 days for each body part
-    measurement_fields = ['biceps', 'chest', 'waist', 'hips', 'thighs']
-    measurements_raw = db.execute("""
-        SELECT field_name, value, logged_at FROM measurement_logs
-        WHERE user_id = ? AND field_name IN ('biceps','chest','waist','hips','thighs')
-        ORDER BY logged_at DESC
-    """, (user_id,)).fetchall()
-
-    # Group by field, take last 10 entries each
-    measurements = {f: [] for f in measurement_fields}
-    for field, value, logged_at in measurements_raw:
-        if len(measurements[field]) < 10:
-            measurements[field].insert(0, {"date": logged_at[:10], "value": value})
-
-    # Training frequency — count per week for last 8 weeks (from actual sessions)
-    training_rows = db.execute("""
-        SELECT strftime('%Y-%W', date) as week, COUNT(*) as count
-        FROM training_sessions
+    # Measurements — from measurements table (biceps_l, biceps_r, chest, waist, etc.)
+    meas_rows = db.execute("""
+        SELECT date, biceps_l, biceps_r, chest, waist, hips, thigh_l, thigh_r
+        FROM measurements
         WHERE user_id = ?
-        GROUP BY week
-        ORDER BY week DESC
-        LIMIT 8
+        ORDER BY date DESC
+        LIMIT 10
     """, (user_id,)).fetchall()
 
-    training_per_week = [
-        {"week": r[0], "count": r[1]}
-        for r in reversed(training_rows)
-    ]
+    measurements = {"biceps_l": [], "biceps_r": [], "chest": [], "waist": [], "hips": [], "thigh_l": [], "thigh_r": []}
+    for row in reversed(meas_rows):
+        d = dict(row)
+        for field in measurements:
+            if d.get(field) is not None:
+                measurements[field].append({"date": d["date"], "value": d[field]})
 
-    # Active program
+    # Training sessions per week — from training_sessions table
+    try:
+        training_rows = db.execute("""
+            SELECT strftime('%Y-%W', date) as week, COUNT(*) as count
+            FROM training_sessions
+            WHERE user_id = ?
+            GROUP BY week
+            ORDER BY week DESC
+            LIMIT 8
+        """, (user_id,)).fetchall()
+        training_per_week = [
+            {"week": r["week"], "count": r["count"]}
+            for r in reversed(training_rows)
+        ]
+    except Exception:
+        training_per_week = []
+
+    # Active program — from training_programs table (most recently created)
     active = db.execute("""
         SELECT name, created_at FROM training_programs
-        WHERE user_id = ? AND is_active = 1
+        WHERE user_id = ?
+        ORDER BY created_at DESC
         LIMIT 1
     """, (user_id,)).fetchone()
 
     active_program = {
-        "name": active[0],
-        "created_at": active[1]
+        "name": active["name"],
+        "created_at": active["created_at"]
     } if active else None
 
-    # Current streak (consecutive weeks with training, from most recent backward)
+    # Current streak — count consecutive weeks with training_sessions entries
     streak = 0
     if training_per_week:
-        for t in reversed(training_per_week):
+        for t in training_per_week:
             if t['count'] > 0:
                 streak += 1
             else:
@@ -104,14 +110,14 @@ def get_progress():
 
     # Sleep history — last 14 days
     sleep_rows = db.execute("""
-        SELECT hours, quality, logged_at FROM sleep_logs
+        SELECT date, hours, quality FROM sleep_logs
         WHERE user_id = ?
-        ORDER BY logged_at DESC
+        ORDER BY date DESC
         LIMIT 14
     """, (user_id,)).fetchall()
 
     sleep_history = [
-        {"date": r[2][:10], "hours": r[0], "quality": r[1]}
+        {"date": r["date"], "hours": r["hours"], "quality": r["quality"]}
         for r in reversed(sleep_rows)
     ]
 

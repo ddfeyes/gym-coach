@@ -1597,9 +1597,9 @@
                 // Measurements — SVG line charts
                 const measEl = document.getElementById('progress-measurements');
                 const m = d.measurements || {};
-                const parts = ['biceps', 'chest', 'waist', 'hips', 'thighs'];
-                const labels = {biceps: 'Біцепси', chest: 'Груди', waist: 'Талія', hips: 'Стегна', thighs: 'Стегна'};
-                const colors = {biceps: '#6366f1', chest: '#f59e0b', waist: '#22c55e', hips: '#ec4899', thighs: '#3b82f6'};
+                const parts = ['biceps_l', 'biceps_r', 'chest', 'waist', 'hips', 'thigh_l', 'thigh_r'];
+                const labels = {biceps_l: 'Біцепс лівий', biceps_r: 'Біцепс правий', chest: 'Груди', waist: 'Талія', hips: 'Стегна', thigh_l: 'Стегно ліве', thigh_r: 'Стегно праве'};
+                const colors = {biceps_l: '#6366f1', biceps_r: '#8b5cf6', chest: '#f59e0b', waist: '#22c55e', hips: '#ec4899', thigh_l: '#3b82f6', thigh_r: '#60a5fa'};
                 let measHTML = '';
                 parts.forEach(function(p) {
                     const entries = m[p] || [];
