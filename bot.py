@@ -307,11 +307,33 @@ def _handle_log(chat_id: int, description: str) -> dict:
 
     try:
         from models.nutrition import log_meal
-        log_id = log_meal(user['id'], description, 'quick_log', 0, 0, 0, 0)
+        from utils.food_estimator import estimate_food
+
+        # Estimate calories and macros from description
+        estimate = estimate_food(description)
+        log_id = log_meal(user['id'], description, 'quick_log',
+                          estimate['kcal'], estimate['protein'],
+                          estimate['carbs'], estimate['fat'])
+
+        if estimate['matched']:
+            lines = [
+                f"✅ Додано: {description}",
+                f"🍽 ~{estimate['kcal']} ккал",
+                f"🥩 Б: {estimate['protein']}г | В: {estimate['carbs']}г | Ж: {estimate['fat']}г",
+                "",
+                "Відкрий додаток щоб скоригувати 🕸"
+            ]
+        else:
+            lines = [
+                f"✅ Додано: {description}",
+                f"🍽 ~{estimate['kcal']} ккал (оріентово)",
+                "Скоригуй в додатку 🕸"
+            ]
+
         return {
             "method": "sendMessage",
             "chat_id": chat_id,
-            "text": f"✅ Додано: {description}\n\nВідкрий додаток щоб побачити розрахунок калорій AI 🕸️",
+            "text": "\n".join(lines),
         }
     except Exception as e:
         return {
