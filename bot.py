@@ -24,6 +24,8 @@ def handle_telegram_update(update_data: dict) -> dict:
         return _handle_log(chat_id, text[5:].strip())
     if text.startswith('/workout'):
         return _handle_workout(chat_id)
+    if text.startswith('/week'):
+        return _handle_week(chat_id)
 
     # Wire AI chat for all other messages
     return _handle_ai_message(chat_id, text)
@@ -72,6 +74,7 @@ def _handle_help(chat_id: int) -> dict:
         "/start — Відкрити Mini App і почати онбординг\n"
         "/help — Показати це меню\n"
         "/today — Сьогоднішній трекінг (калорії, сон)\n"
+        "/week — Тижнева статистика\n"
         "/program — Твоя тренувальна програма\n"
         "/log <опис> — Швидко залогировать прийом їжі\n"
         "/workout — Залогировать тренування\n\n"
@@ -271,6 +274,80 @@ def _handle_workout(chat_id: int) -> dict:
             "method": "sendMessage",
             "chat_id": chat_id,
             "text": "❌ Не вдалося залогировать. Спробуй пізніше.",
+        }
+
+
+def _handle_week(chat_id: int) -> dict:
+    """Show this week's tracking summary."""
+    user = _get_user(chat_id)
+    if not user or not user.get('onboarding_completed'):
+        return {
+            "method": "sendMessage",
+            "chat_id": chat_id,
+            "text": "👋 Ти ще не пройшов онбординг! Натисни /start щоб почати.",
+        }
+
+    try:
+        from models.nutrition import get_weekly_summary
+        from models.training_session import get_sessions_by_date_range
+        from models.sleep_log import get_latest_weight
+        from datetime import date, timedelta
+
+        today = date.today()
+        week_start = today - timedelta(days=6)  # last 7 days including today
+        week_start_str = str(week_start)
+        today_str = str(today)
+
+        # Nutrition summary
+        week_nutrition = get_weekly_summary(user['id'])
+        total_cal = sum(d.get('total_calories', 0) for d in week_nutrition)
+        total_protein = sum(d.get('total_protein', 0) for d in week_nutrition)
+        total_carbs = sum(d.get('total_carbs', 0) for d in week_nutrition)
+        total_fat = sum(d.get('total_fat', 0) for d in week_nutrition)
+        days_with_logs = sum(1 for d in week_nutrition if d.get('total_calories', 0) > 0)
+
+        # Training sessions this week
+        sessions = get_sessions_by_date_range(user['id'], week_start_str, today_str)
+        workout_count = len(sessions)
+
+        # Calculate streak
+        all_sessions = get_sessions_by_date_range(user['id'], '2020-01-01', today_str)
+        streak = 0
+        current_week_start = today - timedelta(days=today.weekday())
+        while True:
+            w_start = current_week_start - timedelta(weeks=streak)
+            w_end = w_start + timedelta(days=6)
+            week_sessions = [s for s in all_sessions
+                           if w_start <= date.fromisoformat(s['date']) <= w_end]
+            if week_sessions:
+                streak += 1
+                current_week_start = w_start - timedelta(days=1)
+            else:
+                break
+
+        lines = ["📊 *Тиждень*"]
+        lines.append(f"🍽️ Калорії: {round(total_cal)} ккал | Дні: {days_with_logs}/7")
+
+        if total_cal > 0:
+            avg_cal = int(total_cal / 7)
+            lines.append(f"📈 Середнє: {avg_cal} ккал/день")
+            lines.append(f"🥩 Білок: {round(total_protein)} г | Вугл: {round(total_carbs)} г | Жири: {round(total_fat)} г")
+
+        lines.append(f"💪 Тренувань: {workout_count}")
+        if streak > 0:
+            lines.append(f"🔥 Streak: {streak} тижнів")
+
+        return {
+            "method": "sendMessage",
+            "chat_id": chat_id,
+            "text": "\n".join(lines),
+            "parse_mode": "Markdown",
+        }
+    except Exception as e:
+        return {
+            "method": "sendMessage",
+            "chat_id": chat_id,
+            "text": "❌ Не вдалося завантажити тижневу статистику.",
         }
 
 
