@@ -223,13 +223,42 @@ def _handle_today(chat_id: int) -> dict:
             q_stars = "⭐" * quality if quality else "-"
             lines.append(f"😴 Сон: {hours} год {q_stars}")
 
+        # Today's planned workout (based on program schedule)
+        try:
+            from models.training_program import get_active_training_program
+            active_program = get_active_training_program(user['id'])
+            if active_program:
+                from datetime import date
+                today_date = date.today()
+                training_days = int(user.get('training_days_per_week', 3))
+                # Determine which program day today is (Mon=0, Sun=6)
+                # Simple: weekday modulo training_days gives program day index
+                program_day_index = (today_date.weekday() % training_days)
+                schedule = active_program.get('schedule', [])
+                exercises = active_program.get('exercises', [])
+                if schedule and program_day_index < len(schedule):
+                    day_label = schedule[program_day_index]
+                    day_exercises = [e for e in exercises if e.get('day', 0) == program_day_index + 1]
+                    lines.append(f"📅 *{day_label}*")
+                    if day_exercises:
+                        for ex in day_exercises[:5]:
+                            lines.append(f"  • {ex['exercise']} — {ex['sets']}×{ex['reps']}")
+                        if len(day_exercises) > 5:
+                            lines.append(f"  ...та ще {len(day_exercises) - 5}")
+                    else:
+                        lines.append("  (вiдпочинок)")
+                elif not today_sessions:
+                    lines.append("📅 Відпочинок сьогодні")
+        except Exception:
+            pass
+
         if today_sessions:
             session = today_sessions[0]
-            program = session.get('program_name', 'Тренування')
+            program_name = session.get('program_name', 'Тренування')
             duration = session.get('duration_minutes', 0)
-            lines.append(f"💪 {program} ({duration} хв)")
+            lines.append(f"💪 Залоговано: {program_name} ({duration} хв)")
         else:
-            lines.append("💪 Тренувань немає / /workout щоб залогити")
+            lines.append("💪 Немає / /workout щоб залогити")
 
         lines.append("")
         lines.append("💪 Натисни /log щоб додати прийом їжі!")
@@ -267,12 +296,32 @@ def _handle_program(chat_id: int) -> dict:
                 "chat_id": chat_id,
                 "text": "🏋️ У тебе ще немає програми! Відкрий додаток і згенеруй свою першу програму.",
             }
-
         lines = [f"🏋️ *{program.get('name', 'Програма')}*\n"]
-        for ex in program.get('exercises', [])[:8]:
-            lines.append(
-                f"• {ex['exercise']} — {ex['sets']}×{ex['reps']} ({ex.get('muscle_group', '')})"
-            )
+
+        # Group exercises by day
+        schedule = program.get('schedule', [])
+        exercises = program.get('exercises', [])
+        by_day = {}
+        for ex in exercises:
+            d = ex.get('day', 1)
+            if d not in by_day:
+                by_day[d] = []
+            by_day[d].append(ex)
+
+        # Show each schedule day with its exercises
+        for i, day_label in enumerate(schedule):
+            day_num = i + 1
+            day_exercises = by_day.get(day_num, [])
+            lines.append(f"\n📅 *{day_label}*")
+            if day_exercises:
+                for ex in day_exercises[:6]:
+                    mg = ex.get('muscle_group', '')
+                    mg_str = f" ({mg})" if mg else ""
+                    lines.append(f"  • {ex['exercise']} — {ex['sets']}×{ex['reps']}{mg_str}")
+                if len(day_exercises) > 6:
+                    lines.append(f"  ...ще {len(day_exercises) - 6} вправ")
+            else:
+                lines.append("  Відпочинок")
 
         return {
             "method": "sendMessage",
@@ -286,6 +335,7 @@ def _handle_program(chat_id: int) -> dict:
             "chat_id": chat_id,
             "text": "❌ Не вдалося завантажити програму.",
         }
+
 
 
 def _handle_log(chat_id: int, description: str) -> dict:
