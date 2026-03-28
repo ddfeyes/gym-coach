@@ -26,6 +26,8 @@ def handle_telegram_update(update_data: dict) -> dict:
         return _handle_workout(chat_id)
     if text.startswith('/week'):
         return _handle_week(chat_id)
+    if text.startswith('/tdee'):
+        return _handle_tdee(chat_id)
 
     # Wire AI chat for all other messages
     return _handle_ai_message(chat_id, text)
@@ -75,6 +77,7 @@ def _handle_help(chat_id: int) -> dict:
         "/help — Показати це меню\n"
         "/today — Сьогоднішній трекінг (калорії, сон)\n"
         "/week — Тижнева статистика\n"
+        "/tdee — Добова норма калорій та макроси\n"
         "/program — Твоя тренувальна програма\n"
         "/log <опис> — Швидко залогировать прийом їжі\n"
         "/workout — Залогировать тренування\n\n"
@@ -107,6 +110,60 @@ def _get_user(chat_id: int):
         return None
 
 
+def _calculate_tdee(user: dict) -> dict:
+    """Calculate TDEE and macro targets from user data."""
+    weight = float(user.get('weight_kg', 70))
+    height = float(user.get('height_cm', 170))
+    age = int(user.get('age', 25))
+    gender = user.get('gender', 'male')
+    goal = user.get('primary_goal', 'health')
+    training_days = int(user.get('training_days_per_week', 3))
+
+    # Mifflin-St Jeor BMR
+    if gender == 'male':
+        bmr = 10 * weight + 6.25 * height - 5 * age + 5
+    else:
+        bmr = 10 * weight + 6.25 * height - 5 * age - 161
+
+    # Activity multiplier
+    if training_days <= 1:
+        activity = 1.2
+    elif training_days <= 3:
+        activity = 1.375
+    elif training_days <= 5:
+        activity = 1.55
+    else:
+        activity = 1.725
+
+    tdee = bmr * activity
+
+    # Goal adjustment
+    if goal == 'muscle_gain':
+        target = tdee + 300
+    elif goal == 'fat_loss':
+        target = tdee - 500
+    elif goal in ('strength', 'health', 'recomposition'):
+        target = tdee
+    else:
+        target = tdee
+
+    # Macro targets
+    protein_g = weight * 2.0  # 2g per kg
+    fat_g = weight * 1.0       # 1g per kg
+    protein_cal = protein_g * 4
+    fat_cal = fat_g * 9
+    carbs_cal = max(0, target - protein_cal - fat_cal)
+    carbs_g = carbs_cal / 4
+
+    return {
+        'tdee': round(tdee),
+        'target': round(target),
+        'protein_g': round(protein_g),
+        'carbs_g': round(carbs_g),
+        'fat_g': round(fat_g),
+    }
+
+
 def _handle_today(chat_id: int) -> dict:
     """Show today's tracking summary."""
     user = _get_user(chat_id)
@@ -126,15 +183,23 @@ def _handle_today(chat_id: int) -> dict:
         nutrition = get_daily_summary(user['id'], today)
         latest_weight = get_latest_weight(user['id'])
         today_sessions = get_sessions_by_date_range(user['id'], today, today)
+        macros = _calculate_tdee(user)
 
         lines = ["📊 *Сьогодні:*"]
 
         if nutrition.get('total_calories', 0) > 0:
-            lines.append(f"🍽️ Калорії: {round(nutrition['total_calories'])} ккал")
-            lines.append(f"🥩 Білок: {round(nutrition['total_protein'])} г | Вугл: {round(nutrition['total_carbs'])} г | Жири: {round(nutrition['total_fat'])} г")
+            cal = round(nutrition['total_calories'])
+            remaining = macros['target'] - cal
+            lines.append(f"🍽️ {cal} / {macros['target']} ккал")
+            if remaining > 0:
+                lines.append(f"   🔥 Залишилось: {remaining} ккал")
+            else:
+                lines.append(f"   ⚠️ Перевищено: {abs(remaining)} ккал")
+            lines.append(f"🥩 Б: {round(nutrition['total_protein'])}/{macros['protein_g']} г | В: {round(nutrition['total_carbs'])}/{macros['carbs_g']} г | Ж: {round(nutrition['total_fat'])}/{macros['fat_g']} г")
             lines.append(f"Прийомів: {len(nutrition.get('meals', []))}")
         else:
-            lines.append("🍽️ Їжа: ще не логив(-ла)")
+            lines.append(f"🍽️ Немає даних | Денна норма: {macros['target']} ккал")
+            lines.append(f"🥩 Б: 0/{macros['protein_g']} г | В: 0/{macros['carbs_g']} г | Ж: 0/{macros['fat_g']} г")
 
         if latest_weight:
             lines.append(f"⚖️ Вага: {latest_weight['weight_kg']} кг")
@@ -325,13 +390,25 @@ def _handle_week(chat_id: int) -> dict:
             else:
                 break
 
+        macros = _calculate_tdee(user)
+        weekly_target = macros['target'] * 7
+
         lines = ["📊 *Тиждень*"]
-        lines.append(f"🍽️ Калорії: {round(total_cal)} ккал | Дні: {days_with_logs}/7")
+        lines.append(f"🍽️ {round(total_cal)} / {weekly_target} ккал | Дні: {days_with_logs}/7")
 
         if total_cal > 0:
             avg_cal = int(total_cal / 7)
-            lines.append(f"📈 Середнє: {avg_cal} ккал/день")
-            lines.append(f"🥩 Білок: {round(total_protein)} г | Вугл: {round(total_carbs)} г | Жири: {round(total_fat)} г")
+            diff = avg_cal - macros['target']
+            if diff > 0:
+                lines.append(f"📈 Середнє: {avg_cal} ккал/день (🔺+{diff})")
+            elif diff < 0:
+                lines.append(f"📈 Середнє: {avg_cal} ккал/день (🔻{diff})")
+            else:
+                lines.append(f"📈 Середнє: {avg_cal} ккал/день ✅")
+            weekly_protein = macros['protein_g'] * 7
+            weekly_carbs = macros['carbs_g'] * 7
+            weekly_fat = macros['fat_g'] * 7
+            lines.append(f"🥩 Б: {round(total_protein)}/{weekly_protein} г | В: {round(total_carbs)}/{weekly_carbs} г | Ж: {round(total_fat)}/{weekly_fat} г")
 
         lines.append(f"💪 Тренувань: {workout_count}")
         if streak > 0:
@@ -349,6 +426,57 @@ def _handle_week(chat_id: int) -> dict:
             "chat_id": chat_id,
             "text": "❌ Не вдалося завантажити тижневу статистику.",
         }
+
+
+
+def _handle_tdee(chat_id: int) -> dict:
+    """Show calculated TDEE and macro targets."""
+    user = _get_user(chat_id)
+    if not user or not user.get('onboarding_completed'):
+        return {
+            "method": "sendMessage",
+            "chat_id": chat_id,
+            "text": "👋 Ти ще не пройшов онбординг! Натисни /start щоб почати.",
+        }
+
+    try:
+        macros = _calculate_tdee(user)
+        weight = float(user.get('weight_kg', 70))
+        goal = user.get('primary_goal', 'health')
+        training_days = int(user.get('training_days_per_week', 3))
+
+        goal_labels = {
+            'muscle_gain': '📈 Набір маси (+300 ккал)',
+            'fat_loss': '🔥 Жироспалення (-500 ккал)',
+            'strength': '💪 Сила (TDEE)',
+            'health': '❤️ Здоров'я (TDEE)',
+            'recomposition': '♻️ Рекомпозиція (TDEE)',
+        }
+
+        lines = ["🎯 *Твої цілі*\n"]
+        lines.append(f"Базовий обмін (BMR): {macros['tdee'] - 300} ккал")
+        lines.append(f"Добова норма: {macros['target']} ккал")
+        lines.append(f"Тренувань/тиждень: {training_days}")
+        lines.append(f"Мета: {goal_labels.get(goal, 'TDEE')}")
+        lines.append("")
+        lines.append("🍽️ *Макроси:*")
+        lines.append(f"Білок: {macros['protein_g']} г ({round(macros['protein_g'] / weight, 1)} г/кг)")
+        lines.append(f"Вуглеводи: {macros['carbs_g']} г")
+        lines.append(f"Жири: {macros['fat_g']} г")
+
+        return {
+            "method": "sendMessage",
+            "chat_id": chat_id,
+            "text": "\n".join(lines),
+            "parse_mode": "Markdown",
+        }
+    except Exception as e:
+        return {
+            "method": "sendMessage",
+            "chat_id": chat_id,
+            "text": "❌ Не вдалося розрахувати.",
+        }
+
 
 
 def _handle_ai_message(chat_id: int, text: str) -> dict:
