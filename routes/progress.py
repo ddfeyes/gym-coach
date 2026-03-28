@@ -121,6 +121,19 @@ def get_progress():
         for r in reversed(sleep_rows)
     ]
 
+    # Water history — last 7 days
+    water_rows = db.execute("""
+        SELECT date, amount_ml FROM water_logs
+        WHERE user_id = ?
+        ORDER BY date DESC
+        LIMIT 7
+    """, (user_id,)).fetchall()
+
+    water_history = [
+        {"date": r["date"], "amount_ml": r["amount_ml"]}
+        for r in reversed(water_rows)
+    ]
+
     db.close()
 
     return jsonify({
@@ -130,4 +143,5 @@ def get_progress():
         "active_program": active_program,
         "streak_weeks": streak,
         "sleep_history": sleep_history,
+        "water_history": water_history,
     })
