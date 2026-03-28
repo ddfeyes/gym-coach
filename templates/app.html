@@ -8,9 +8,15 @@
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
+        :root {
+            --accent: #FF6B35;
+            --bg: #121216;
+            --card-bg: #1c1c21;
+            --border: #2a2a30;
+        }
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: #0d0d0d;
+            background: var(--bg);
             color: #ffffff;
             min-height: 100vh;
             display: flex;
@@ -40,14 +46,109 @@
         #onboarding-overlay {
             position: fixed;
             inset: 0;
-            background: #0d0d0d;
+            background: var(--bg);
             z-index: 200;
             display: flex;
             flex-direction: column;
             padding: 20px;
+            padding-bottom: 100px;
             overflow-y: auto;
         }
         #onboarding-overlay.hidden { display: none; }
+
+        /* Onboarding Progress Bar */
+        .ob-progress-wrap {
+            margin-bottom: 24px;
+        }
+        .ob-progress-label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: #a0a0a0;
+            margin-bottom: 6px;
+        }
+        .ob-progress-bar {
+            height: 4px;
+            background: #2a2a30;
+            border-radius: 2px;
+            overflow: hidden;
+        }
+        .ob-progress-fill {
+            height: 100%;
+            background: var(--accent);
+            border-radius: 2px;
+            transition: width 0.3s ease;
+        }
+
+        /* Onboarding Steps */
+        .ob-step { display: none; }
+        .ob-step.active { display: block; }
+
+        /* Sticky CTA nav */
+        .ob-cta {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: linear-gradient(to top, var(--bg) 60%, transparent);
+            padding: 20px;
+            display: flex;
+            gap: 12px;
+            z-index: 201;
+        }
+        .ob-cta .btn-back {
+            background: #2a2a30;
+            border: none;
+            border-radius: 8px;
+            width: 48px;
+            height: 48px;
+            color: #fff;
+            font-size: 18px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+        .ob-cta .btn-next {
+            flex: 1;
+            background: var(--accent);
+            border: none;
+            border-radius: 8px;
+            height: 48px;
+            color: #fff;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .ob-cta .btn-next:disabled { opacity: 0.4; cursor: default; }
+
+        /* Form group with icon */
+        .ob-field {
+            position: relative;
+            margin-bottom: 14px;
+        }
+        .ob-field .field-icon {
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 16px;
+            pointer-events: none;
+        }
+        .ob-field .form-input,
+        .ob-field .form-select {
+            padding-left: 38px;
+        }
+        .ob-section-header {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: #666;
+            margin-bottom: 12px;
+            margin-top: 20px;
+        }
+        .ob-section-header:first-child { margin-top: 0; }
 
         /* Bottom Navigation */
         .bottom-nav {
@@ -55,8 +156,8 @@
             bottom: 0;
             left: 0;
             right: 0;
-            background: #1a1a1a;
-            border-top: 1px solid #2a2a2a;
+            background: var(--card-bg);
+            border-top: 1px solid var(--border);
             display: flex;
             justify-content: space-around;
             padding: 8px 0;
@@ -76,17 +177,17 @@
             font-size: 10px;
             -webkit-tap-highlight-color: transparent;
         }
-        .nav-item.active { color: #6366f1; }
+        .nav-item.active { color: var(--accent); }
         .nav-item .nav-icon { font-size: 20px; }
         .nav-item .nav-label { font-weight: 500; }
 
         /* Cards */
         .card {
-            background: #1a1a1a;
+            background: var(--card-bg);
             border-radius: 12px;
             padding: 16px;
             margin-bottom: 12px;
-            border: 1px solid #2a2a2a;
+            border: 1px solid var(--border);
         }
 
         .card-title {
@@ -113,7 +214,7 @@
         .form-input, .form-select {
             width: 100%;
             background: #252525;
-            border: 1px solid #2a2a2a;
+            border: 1px solid var(--border);
             border-radius: 8px;
             padding: 10px 12px;
             color: #fff;
@@ -121,7 +222,7 @@
             outline: none;
         }
         .form-input:focus, .form-select:focus {
-            border-color: #6366f1;
+            border-color: var(--accent);
         }
         .form-error {
             color: #ef4444;
@@ -131,7 +232,7 @@
 
         .btn-primary {
             width: 100%;
-            background: #6366f1;
+            background: var(--accent);
             border: none;
             border-radius: 8px;
             padding: 14px;
@@ -142,7 +243,7 @@
             margin-top: 8px;
         }
         .btn-primary:disabled {
-            opacity: 0.5;
+            opacity: 0.4;
             cursor: default;
         }
 
@@ -174,22 +275,22 @@
 
         .message.user {
             align-self: flex-end;
-            background: #6366f1;
+            background: var(--accent);
             color: #fff;
             border-bottom-right-radius: 4px;
         }
 
         .message.assistant {
             align-self: flex-start;
-            background: #1a1a1a;
-            border: 1px solid #2a2a2a;
+            background: var(--card-bg);
+            border: 1px solid var(--border);
             border-bottom-left-radius: 4px;
         }
 
         .message.typing {
             align-self: flex-start;
-            background: #1a1a1a;
-            border: 1px solid #2a2a2a;
+            background: var(--card-bg);
+            border: 1px solid var(--border);
             border-bottom-left-radius: 4px;
             color: #666;
         }
@@ -198,13 +299,13 @@
             display: flex;
             gap: 8px;
             padding-top: 12px;
-            border-top: 1px solid #2a2a2a;
+            border-top: 1px solid var(--border);
         }
 
         .chat-input-area input {
             flex: 1;
-            background: #1a1a1a;
-            border: 1px solid #2a2a2a;
+            background: var(--card-bg);
+            border: 1px solid var(--border);
             border-radius: 24px;
             padding: 10px 16px;
             color: #fff;
@@ -212,10 +313,10 @@
             outline: none;
         }
         .chat-input-area input::placeholder { color: #666; }
-        .chat-input-area input:focus { border-color: #6366f1; }
+        .chat-input-area input:focus { border-color: var(--accent); }
 
         .chat-send-btn {
-            background: #6366f1;
+            background: var(--accent);
             border: none;
             border-radius: 50%;
             width: 40px;
@@ -241,8 +342,8 @@
         .quick-actions::-webkit-scrollbar { display: none; }
         .qa-chip {
             flex-shrink: 0;
-            background: #1a1a1a;
-            border: 1px solid #2a2a2a;
+            background: var(--card-bg);
+            border: 1px solid var(--border);
             border-radius: 16px;
             padding: 6px 12px;
             color: #a0a0a0;
@@ -251,13 +352,13 @@
             white-space: nowrap;
             transition: border-color 0.2s, color 0.2s;
         }
-        .qa-chip:active { border-color: #6366f1; color: #6366f1; }
+        .qa-chip:active { border-color: var(--accent); color: var(--accent); }
 
         /* Module list in profile */
         .module-list { list-style: none; }
         .module-list li {
             padding: 14px 0;
-            border-bottom: 1px solid #2a2a2a;
+            border-bottom: 1px solid var(--border);
             display: flex;
             align-items: center;
             justify-content: space-between;
@@ -270,7 +371,7 @@
             display: flex;
             justify-content: space-between;
             padding: 10px 0;
-            border-bottom: 1px solid #2a2a2a;
+            border-bottom: 1px solid var(--border);
             font-size: 14px;
         }
         .profile-field:last-child { border-bottom: none; }
@@ -279,7 +380,7 @@
 
         .mrow { display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px; color: #a0a0a0; }
         .mrow span:last-child { color: #fff; font-weight: 500; }
-        .pbar { height: 6px; background: #2a2a2a; border-radius: 3px; margin: 2px 0 8px; }
+        .pbar { height: 6px; background: var(--border); border-radius: 3px; margin: 2px 0 8px; }
         .pfill { height: 100%; border-radius: 3px; transition: width 0.3s; }
 
         /* Page header */
@@ -293,14 +394,14 @@
         }
         .edit-btn {
             background: none;
-            border: 1px solid #2a2a2a;
+            border: 1px solid var(--border);
             border-radius: 8px;
             padding: 4px 10px;
             color: #a0a0a0;
             font-size: 13px;
             cursor: pointer;
         }
-        .edit-btn:active { border-color: #6366f1; color: #6366f1; }
+        .edit-btn:active { border-color: var(--accent); color: var(--accent); }
 
         /* Modal */
         .modal-overlay {
@@ -315,8 +416,8 @@
         }
         .modal-overlay.hidden { display: none; }
         .modal-content {
-            background: #1a1a1a;
-            border: 1px solid #2a2a2a;
+            background: var(--card-bg);
+            border: 1px solid var(--border);
             border-radius: 12px;
             padding: 20px;
             width: 100%;
@@ -347,7 +448,7 @@
             justify-content: space-between;
             padding: 6px 0;
             font-size: 13px;
-            border-bottom: 1px solid #2a2a2a;
+            border-bottom: 1px solid var(--border);
             color: #a0a0a0;
         }
         .weight-entry:last-child { border-bottom: none; }
@@ -368,7 +469,7 @@
         .progress-bar-wrap {
             flex: 1;
             height: 8px;
-            background: #2a2a2a;
+            background: var(--border);
             border-radius: 4px;
             overflow: hidden;
         }
@@ -391,78 +492,106 @@
 <body>
     <!-- Onboarding Overlay -->
     <div id="onboarding-overlay">
-        <div class="page-header">🏋️ Онбординг</div>
-        <p style="color: #a0a0a0; margin-bottom: 20px; font-size: 14px;">
-            Заповни коротку анкету — і я створю для тебе персональну програму 💪
+        <div class="ob-progress-wrap">
+            <div class="ob-progress-label">
+                <span id="ob-step-label">Крок 1 з 3</span>
+                <span id="ob-step-pct">33%</span>
+            </div>
+            <div class="ob-progress-bar">
+                <div class="ob-progress-fill" id="ob-progress-fill" style="width:33%"></div>
+            </div>
+        </div>
+
+        <div class="page-header" style="margin-bottom:8px;">Розкажи про себе</div>
+        <p style="color: #a0a0a0; margin-bottom: 24px; font-size: 14px;">
+            Я створю для тебе персональну програму 💪
         </p>
 
         <form id="onboarding-form" onsubmit="submitOnboarding(event)">
-            <div class="form-group">
-                <label class="form-label">Ім'я</label>
-                <input type="text" class="form-input" id="ob-name" required placeholder="Як тебе звати?">
+            <!-- Step 1: Основа -->
+            <div class="ob-step active" id="ob-step-1">
+                <div class="ob-section-header">👤 Про тебе</div>
+
+                <div class="ob-field">
+                    <span class="field-icon">✏️</span>
+                    <input type="text" class="form-input" id="ob-name" required placeholder="Як тебе звати?">
+                </div>
+
+                <div class="ob-field">
+                    <span class="field-icon">⚧</span>
+                    <select class="form-select" id="ob-gender" required>
+                        <option value="">Обери стать...</option>
+                        <option value="male">Чоловік</option>
+                        <option value="female">Жінка</option>
+                    </select>
+                </div>
+
+                <div class="ob-field">
+                    <span class="field-icon">🎂</span>
+                    <input type="number" class="form-input" id="ob-age" required min="14" max="80" placeholder="Скільки років?">
+                </div>
             </div>
 
-            <div class="form-group">
-                <label class="form-label">Стать</label>
-                <select class="form-select" id="ob-gender" required>
-                    <option value="">Обери...</option>
-                    <option value="male">Чоловік</option>
-                    <option value="female">Жінка</option>
-                </select>
+            <!-- Step 2: Тіло -->
+            <div class="ob-step" id="ob-step-2">
+                <div class="ob-section-header">📏 Твої параметри</div>
+
+                <div class="ob-field">
+                    <span class="field-icon">📏</span>
+                    <input type="number" class="form-input" id="ob-height" required min="100" max="250" placeholder="Зріст (см)">
+                </div>
+
+                <div class="ob-field">
+                    <span class="field-icon">⚖️</span>
+                    <input type="number" class="form-input" id="ob-weight" required min="30" max="300" step="0.1" placeholder="Вага (кг)">
+                </div>
             </div>
 
-            <div class="form-group">
-                <label class="form-label">Вік</label>
-                <input type="number" class="form-input" id="ob-age" required min="14" max="80" placeholder="Скільки років?">
-            </div>
+            <!-- Step 3: Тренування -->
+            <div class="ob-step" id="ob-step-3">
+                <div class="ob-section-header">🏋️ Тренування</div>
 
-            <div class="form-group">
-                <label class="form-label">Зріст (см)</label>
-                <input type="number" class="form-input" id="ob-height" required min="100" max="250" placeholder="Твій зріст">
-            </div>
+                <div class="ob-field">
+                    <span class="field-icon">📈</span>
+                    <select class="form-select" id="ob-experience" required>
+                        <option value="">Досвід...</option>
+                        <option value="beginner">Початківець (до 1 року)</option>
+                        <option value="intermediate">Середній (1-3 роки)</option>
+                        <option value="advanced">Просунутий (3+ роки)</option>
+                    </select>
+                </div>
 
-            <div class="form-group">
-                <label class="form-label">Вага (кг)</label>
-                <input type="number" class="form-input" id="ob-weight" required min="30" max="300" step="0.1" placeholder="Поточна вага">
-            </div>
+                <div class="ob-field">
+                    <span class="field-icon">📅</span>
+                    <select class="form-select" id="ob-days" required>
+                        <option value="">Тренувань на тиждень...</option>
+                        <option value="2">2 дні</option>
+                        <option value="3">3 дні</option>
+                        <option value="4">4 дні</option>
+                        <option value="5">5 днів</option>
+                        <option value="6">6 днів</option>
+                    </select>
+                </div>
 
-            <div class="form-group">
-                <label class="form-label">Досвід</label>
-                <select class="form-select" id="ob-experience" required>
-                    <option value="">Обери...</option>
-                    <option value="beginner">Початківець (до 1 року)</option>
-                    <option value="intermediate">Середній (1-3 роки)</option>
-                    <option value="advanced">Просунутий (3+ роки)</option>
-                </select>
+                <div class="ob-field">
+                    <span class="field-icon">🎯</span>
+                    <select class="form-select" id="ob-goal" required>
+                        <option value="">Головна мета...</option>
+                        <option value="muscle_gain">Набір м'язової маси 💪</option>
+                        <option value="fat_loss">Схуднення 🔥</option>
+                        <option value="strength">Сила 💎</option>
+                        <option value="health">Здоров'я 🏥</option>
+                        <option value="recomposition">Рекомпозиція тіла ⚡</option>
+                    </select>
+                </div>
             </div>
-
-            <div class="form-group">
-                <label class="form-label">Тренувань на тиждень</label>
-                <select class="form-select" id="ob-days" required>
-                    <option value="">Обери...</option>
-                    <option value="2">2 дні</option>
-                    <option value="3">3 дні</option>
-                    <option value="4">4 дні</option>
-                    <option value="5">5 днів</option>
-                    <option value="6">6 днів</option>
-                </select>
-            </div>
-
-            <div class="form-group">
-                <label class="form-label">Головна мета</label>
-                <select class="form-select" id="ob-goal" required>
-                    <option value="">Обери...</option>
-                    <option value="muscle_gain">Набір м'язової маси 💪</option>
-                    <option value="fat_loss">Схуднення 🔥</option>
-                    <option value="strength">Сила 💎</option>
-                    <option value="health">Здоров'я 🏥</option>
-                    <option value="recomposition">Рекомпозиція тіла ⚡</option>
-                </select>
-            </div>
-
-            <button type="submit" class="btn-primary" id="ob-submit">Далі →</button>
-            <div id="ob-error" class="form-error" style="margin-top: 10px; text-align: center;"></div>
         </form>
+
+        <div class="ob-cta">
+            <button type="button" class="btn-back" id="ob-back" onclick="obPrevStep()" style="display:none;">←</button>
+            <button type="button" class="btn-next" id="ob-next" onclick="obNextStep()">Далі</button>
+        </div>
+        <div id="ob-error" class="form-error" style="margin-top: 80px; text-align: center;"></div>
     </div>
 
     <div class="app-container" id="main-app" style="display: none;">
@@ -676,6 +805,56 @@
         const initData = tg.initData;
         let currentUserId = null;
         let conversationId = null;
+        let obStep = 1;
+        const obTotalSteps = 3;
+
+        function obNextStep() {
+            // Validate current step fields
+            const stepEl = document.getElementById('ob-step-' + obStep);
+            const inputs = stepEl.querySelectorAll('input, select');
+            let valid = true;
+            inputs.forEach(function(inp) {
+                if (inp.required && !inp.value) {
+                    inp.style.borderColor = '#ef4444';
+                    valid = false;
+                } else {
+                    inp.style.borderColor = '';
+                }
+            });
+            if (!valid) return;
+
+            if (obStep < obTotalSteps) {
+                document.getElementById('ob-step-' + obStep).classList.remove('active');
+                obStep++;
+                document.getElementById('ob-step-' + obStep).classList.add('active');
+                document.getElementById('ob-back').style.display = 'flex';
+                const pct = Math.round((obStep / obTotalSteps) * 100);
+                document.getElementById('ob-step-label').textContent = 'Крок ' + obStep + ' з ' + obTotalSteps;
+                document.getElementById('ob-step-pct').textContent = pct + '%';
+                document.getElementById('ob-progress-fill').style.width = pct + '%';
+                if (obStep === obTotalSteps) {
+                    document.getElementById('ob-next').textContent = 'Створити програму 🚀';
+                }
+            } else {
+                submitOnboarding();
+            }
+        }
+
+        function obPrevStep() {
+            if (obStep > 1) {
+                document.getElementById('ob-step-' + obStep).classList.remove('active');
+                obStep--;
+                document.getElementById('ob-step-' + obStep).classList.add('active');
+                const pct = Math.round((obStep / obTotalSteps) * 100);
+                document.getElementById('ob-step-label').textContent = 'Крок ' + obStep + ' з ' + obTotalSteps;
+                document.getElementById('ob-step-pct').textContent = pct + '%';
+                document.getElementById('ob-progress-fill').style.width = pct + '%';
+                document.getElementById('ob-next').textContent = 'Далі';
+                if (obStep === 1) {
+                    document.getElementById('ob-back').style.display = 'none';
+                }
+            }
+        }
 
         // Tab switching
         function switchTab(tabName) {
@@ -693,10 +872,11 @@
 
         // Onboarding
         async function submitOnboarding(e) {
-            e.preventDefault();
-            const btn = document.getElementById('ob-submit');
+            if (e) e.preventDefault();
+            const btn = document.getElementById('ob-next');
             const error = document.getElementById('ob-error');
             btn.disabled = true;
+            btn.textContent = 'Зачекай...';
             error.textContent = '';
 
             const data = {
@@ -731,7 +911,7 @@
                         <div style="font-size: 48px; margin-bottom: 16px;">🏋️</div>
                         <div style="font-size: 18px; font-weight: 600; margin-bottom: 8px;">Створюю твою програму...</div>
                         <div style="color: #a0a0a0; font-size: 14px;">Це займе до 30 секунд</div>
-                        <div style="margin-top: 24px; color: #6366f1; font-size: 13px;">Завантажую тренування...</div>
+                        <div style="margin-top: 24px; color: var(--accent); font-size: 13px;">Завантажую тренування...</div>
                     </div>
                 `;
 
@@ -1015,11 +1195,11 @@
                         <div class="card">
                             <div class="card-title">${dayExercises[0].muscle_group || 'День ' + day}</div>
                             ${dayExercises.map(ex => `
-                                <div style="padding: 8px 0; border-bottom: 1px solid #2a2a2a;">
+                                <div style="padding: 8px 0; border-bottom: 1px solid var(--border);">
                                     <div style="font-weight: 500;">${ex.exercise}</div>
                                     <div style="color: #a0a0a0; font-size: 13px;">
                                         ${ex.sets} підходів × ${ex.reps} повторів · відпочинок ${ex.rest_seconds}с
-                                        ${ex.notes ? '<br><span style="color:#6366f1">' + ex.notes + '</span>' : ''}
+                                        ${ex.notes ? '<br><span style="color:var(--accent)">' + ex.notes + '</span>' : ''}
                                     </div>
                                 </div>
                             `).join('')}
@@ -1115,13 +1295,13 @@
                 html += '<div class="mrow"><span>Вугл.</span><span>' + Math.round(summary.total_carbs) + ' / ' + targets.carbs + ' г</span></div>';
                 html += '<div class="pbar"><div class="pfill" style="width:' + carbsPct + '%;background:#22c55e"></div></div>';
                 html += '<div class="mrow"><span>Жири</span><span>' + Math.round(summary.total_fat) + ' / ' + targets.fat + ' г</span></div>';
-                html += '<div class="pbar"><div class="pfill" style="width:' + fatPct + '%;background:#6366f1"></div></div>';
+                html += '<div class="pbar"><div class="pfill" style="width:' + fatPct + '%;background:var(--accent)"></div></div>';
                 html += '</div></div>';
 
                 if (meals.length > 0) {
                     html += '<div class="card"><div class="card-title">Прийоми</div>';
                     meals.forEach(function(m) {
-                        html += '<div style="padding:8px 0;border-bottom:1px solid #2a2a2a;font-size:14px">';
+                        html += '<div style="padding:8px 0;border-bottom:1px solid var(--border);font-size:14px">';
                         html += '<div style="font-weight:500">' + m.meal_type + '</div>';
                         html += '<div style="color:#a0a0a0;font-size:12px">К: ' + Math.round(m.calories) + ' | Б: ' + Math.round(m.protein) + 'г | В: ' + Math.round(m.carbs) + 'г | Ж: ' + Math.round(m.fat) + 'г</div>';
                         html += '<div style="color:#666;font-size:12px">' + m.description + '</div></div>';
@@ -1201,7 +1381,7 @@
             if (!toast) {
                 toast = document.createElement('div');
                 toast.id = 'toast';
-                toast.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#1a1a1a;border:1px solid #2a2a2a;border-radius:8px;padding:10px 20px;color:#fff;font-size:14px;z-index:500;opacity:0;transition:opacity 0.3s;pointer-events:none;';
+                toast.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--card-bg);border:1px solid var(--border);border-radius:8px;padding:10px 20px;color:#fff;font-size:14px;z-index:500;opacity:0;transition:opacity 0.3s;pointer-events:none;';
                 document.body.appendChild(toast);
             }
             toast.textContent = message;
@@ -1261,7 +1441,7 @@
                     html += '<div class="card"><div class="card-title">Історія</div>';
                     entries.forEach(function(e) {
                         const stars = '⭐'.repeat(e.quality) + '☆'.repeat(5 - e.quality);
-                        html += '<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #2a2a2a;font-size:14px;"><span>' + e.date + '</span><span>' + e.hours + 'ч ' + stars + '</span></div>';
+                        html += '<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:14px;"><span>' + e.date + '</span><span>' + e.hours + 'ч ' + stars + '</span></div>';
                     });
                     html += '</div>';
                 }
@@ -1513,7 +1693,7 @@
                     var dots = weights.map(function(w, i) {
                         var x = PAD + (i / (weights.length - 1 || 1)) * chartW;
                         var y = PAD + chartH - ((w - minW) / range) * chartH;
-                        return '<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="3" fill="#6366f1"/>';
+                        return '<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="3" fill="var(--accent)"/>';
                     }).join('');
                     // Y-axis labels
                     var yLabels = [];
@@ -1532,7 +1712,7 @@
                     }
 
                     weightEl.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:auto;display:block;" xmlns="http://www.w3.org/2000/svg">' +
-                        '<polyline points="' + polyline + '" fill="none" stroke="#6366f1" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>' +
+                        '<polyline points="' + polyline + '" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>' +
                         dots +
                         yLabels.join('') +
                         xLabels.join('') +
@@ -1553,7 +1733,7 @@
                         else if (t.count === 1) bg = '#1e3a5f';
                         else if (t.count === 2) bg = '#2563eb';
                         else if (t.count === 3) bg = '#4f46e5';
-                        else bg = '#6366f1';
+                        else bg = 'var(--accent)';
                         var wk = parseInt(t.week.split('-')[1]) || 0;
                         var monthNames = ['Січ','Лют','Бер','Кві','Тра','Чер','Лип','Сер','Вер','Жов','Лис','Груд'];
                         var monthIdx = Math.floor((wk - 1) / 4.5);
@@ -1673,7 +1853,7 @@
                 const m = d.measurements || {};
                 const parts = ['biceps_l', 'biceps_r', 'chest', 'waist', 'hips', 'thigh_l', 'thigh_r'];
                 const labels = {biceps_l: 'Біцепс лівий', biceps_r: 'Біцепс правий', chest: 'Груди', waist: 'Талія', hips: 'Стегна', thigh_l: 'Стегно ліве', thigh_r: 'Стегно праве'};
-                const colors = {biceps_l: '#6366f1', biceps_r: '#8b5cf6', chest: '#f59e0b', waist: '#22c55e', hips: '#ec4899', thigh_l: '#3b82f6', thigh_r: '#60a5fa'};
+                const colors = {biceps_l: 'var(--accent)', biceps_r: '#8b5cf6', chest: '#f59e0b', waist: '#22c55e', hips: '#ec4899', thigh_l: '#3b82f6', thigh_r: '#60a5fa'};
                 let measHTML = '';
                 parts.forEach(function(p) {
                     const entries = m[p] || [];
@@ -1700,7 +1880,7 @@
                     var dots = entries.map(function(e, i) {
                         var x = PAD + (i / (values.length - 1)) * chartW;
                         var y = PAD + chartH - ((parseFloat(e.value) - minV) / range) * chartH;
-                        return '<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="2.5" fill="' + (colors[p] || '#6366f1') + '"/>';
+                        return '<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="2.5" fill="' + (colors[p] || 'var(--accent)') + '"/>';
                     }).join('');
                     var yLabels = [];
                     for (var step = 0; step <= 3; step++) {
@@ -1718,9 +1898,9 @@
                     measHTML += '<div style="margin-bottom:12px;">' +
                         '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">' +
                         '<span style="font-size:13px;color:#a0a0a0">' + (labels[p] || p) + '</span>' +
-                        '<span style="font-size:14px;font-weight:600;color:' + (colors[p] || '#6366f1') + '">' + last.value + ' см</span></div>' +
+                        '<span style="font-size:14px;font-weight:600;color:' + (colors[p] || 'var(--accent)') + '">' + last.value + ' см</span></div>' +
                         '<svg viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:auto;display:block;" xmlns="http://www.w3.org/2000/svg">' +
-                        '<polyline points="' + polyline + '" fill="none" stroke="' + (colors[p] || '#6366f1') + '" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>' +
+                        '<polyline points="' + polyline + '" fill="none" stroke="' + (colors[p] || 'var(--accent)') + '" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>' +
                         dots +
                         yLabels.join('') +
                         xLabels.join('') +
