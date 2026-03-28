@@ -5,6 +5,29 @@ from config import Config
 
 def handle_telegram_update(update_data: dict) -> dict:
     """Обробка webhook оновлення від Telegram"""
+    # Handle callback query from inline keyboard buttons
+    callback_query = update_data.get('callback_query')
+    if callback_query:
+        from models.user import get_user_by_telegram_id
+        user = get_user_by_telegram_id(callback_query['from']['id'])
+        chat_id = callback_query['message']['chat']['id']
+        message_id = callback_query['message']['message_id']
+        data = callback_query.get('data', '')
+
+        # Route callback data to appropriate handler
+        if data == 'action:log':
+            return _handle_inline_log(chat_id, message_id, callback_query['id'])
+        elif data == 'action:water':
+            return _handle_inline_water(chat_id, message_id, callback_query['id'])
+        elif data == 'action:workout':
+            return _handle_inline_workout(chat_id, message_id, callback_query['id'])
+        elif data == 'action:week':
+            return _handle_inline_week(chat_id, message_id, callback_query['id'])
+        elif data == 'action:progress':
+            return _handle_inline_progress(chat_id, message_id, callback_query['id'])
+        else:
+            return {"method": "answerCallbackQuery", "callback_query_id": callback_query['id']}
+
     message = update_data.get('message')
     if not message:
         return {"ok": True}
@@ -308,11 +331,23 @@ def _handle_today(chat_id: int) -> dict:
         lines.append("")
         lines.append("💪 Натисни /log щоб додати прийом їжі!")
 
+        reply_markup = json.dumps({
+            "inline_keyboard": [[
+                {"text": "🍽️ Лог їжі", "callback_data": "action:log"},
+                {"text": "💧 Вода", "callback_data": "action:water"},
+                {"text": "💪 Тренування", "callback_data": "action:workout"},
+            ], [
+                {"text": "📊 Тиждень", "callback_data": "action:week"},
+                {"text": "📈 Прогресс", "callback_data": "action:progress"},
+            ]],
+        })
+
         return {
             "method": "sendMessage",
             "chat_id": chat_id,
             "text": "\n".join(lines),
             "parse_mode": "Markdown",
+            "reply_markup": reply_markup,
         }
     except Exception as e:
         return {
@@ -2247,3 +2282,79 @@ def _handle_ai_message(chat_id: int, text: str) -> dict:
         "text": response_text,
     }
     return reply
+
+def _handle_inline_log(chat_id: int, message_id: int, cq_id: str) -> dict:
+    """Respond to inline log food button."""
+    return {
+        "method": "editMessageText",
+        "chat_id": chat_id,
+        "message_id": message_id,
+        "text": "🍽️ *Лог прийому їжі*\n\nВикористай команду:\n`/log Обід: курча з рисом`\n\nПриклади:\n`/log Сніданок: вівсянка з бананом`\n`/log Перекус: йогурт`",
+        "parse_mode": "Markdown",
+        "reply_markup": json.dumps({
+            "inline_keyboard": [[{"text": "💧 Вода", "callback_data": "action:water"}, {"text": "💪 Тренування", "callback_data": "action:workout"}]],
+        }),
+    }
+
+
+def _handle_inline_water(chat_id: int, message_id: int, cq_id: str) -> dict:
+    """Log 250ml water and respond."""
+    user = _get_user(chat_id)
+    if not user or not user.get('onboarding_completed'):
+        return {"method": "answerCallbackQuery", "callback_query_id": cq_id, "text": "❌ Спочатку /start"}
+    try:
+        from models.water_log import add_water_log
+        from datetime import date
+        add_water_log(user['id'], date.today().isoformat(), 250)
+        today = str(date.today())
+        from models.water_log import get_daily_water
+        today_water = get_daily_water(user['id'], today)
+        water_ml = today_water.get('amount_ml', 0)
+        return {
+            "method": "editMessageText",
+            "chat_id": chat_id,
+            "message_id": message_id,
+            "text": f"💧 *Вода записана!*\n\n+250 мл\nСьогодні: {water_ml} / 2500 мл",
+            "parse_mode": "Markdown",
+            "reply_markup": json.dumps({
+                "inline_keyboard": [[{"text": "🍽️ Лог їжі", "callback_data": "action:log"}, {"text": "💪 Тренування", "callback_data": "action:workout"}]],
+            }),
+        }
+    except Exception as e:
+        return {"method": "answerCallbackQuery", "callback_query_id": cq_id, "text": "❌ Помилка"}
+
+
+def _handle_inline_workout(chat_id: int, message_id: int, cq_id: str) -> dict:
+    """Show workout logging instructions."""
+    return {
+        "method": "editMessageText",
+        "chat_id": chat_id,
+        "message_id": message_id,
+        "text": "💪 *Лог тренування*\n\nВикористай:\n`/workout` — швидкий лог\n`/workout 45` — з тривалістю\n`/workout 45 \"Upper body\"` — з нотатками",
+        "parse_mode": "Markdown",
+        "reply_markup": json.dumps({
+            "inline_keyboard": [[{"text": "🍽️ Лог їжі", "callback_data": "action:log"}, {"text": "💧 Вода", "callback_data": "action:water"}]],
+        }),
+    }
+
+
+def _handle_inline_week(chat_id: int, message_id: int, cq_id: str) -> dict:
+    """Show week stats (same as /week)."""
+    result = _handle_week(chat_id)
+    result["chat_id"] = chat_id
+    result["message_id"] = message_id
+    if "method" in result:
+        del result["method"]
+    return result
+
+
+def _handle_inline_progress(chat_id: int, message_id: int, cq_id: str) -> dict:
+    """Show progress (same as /progress)."""
+    result = _handle_progress(chat_id)
+    result["chat_id"] = chat_id
+    result["message_id"] = message_id
+    if "method" in result:
+        del result["method"]
+    return result
+
+
