@@ -34,6 +34,8 @@ def handle_telegram_update(update_data: dict) -> dict:
         return _handle_month(chat_id)
     if text.startswith('/weight'):
         return _handle_weight(chat_id, text)
+    if text.startswith('/measure'):
+        return _handle_measure(chat_id, text)
     if text.startswith('/tdee'):
         return _handle_tdee(chat_id)
 
@@ -92,7 +94,9 @@ def _handle_help(chat_id: int) -> dict:
         "/log <опис> — Швидко залогировать прийом їжі\n"
         "/workout — Залогировать тренування\n"
         "/water [мл] — Додати води або переглянути\n"
-        "/weight [кг] — Записати або переглянути вагу\n\n"
+        "/weight [кг] — Записати або переглянути вагу\n"
+        "/measure — Переглянути заміри тіла\n"
+        "/measure chest=95 waist=78 — Записати заміри\n\n"
         "💬 Або просто напиши мені — я відповім!"
     )
 
@@ -956,6 +960,164 @@ def _handle_weight(chat_id: int, text: str) -> dict:
             "method": "sendMessage",
             "chat_id": chat_id,
             "text": "❌ Не вдалося завантажити дані про вагу.",
+        }
+
+def _handle_measure(chat_id: int, text: str) -> dict:
+    """Handle /measure command — show or log body measurements.
+    /measure — show latest measurements + recent history
+    /measure chest=95 waist=78 biceps_l=35 — log measurements for today
+    /measure chest=95 2026-03-28 — log for specific date
+    """
+    user = _get_user(chat_id)
+    if not user or not user.get('onboarding_completed'):
+        return {
+            "method": "sendMessage",
+            "chat_id": chat_id,
+            "text": "👋 Ти ще не пройшов онбординг! Натисни /start щоб почати.",
+        }
+
+    try:
+        from models.measurement import log_measurement, get_measurement_history, get_latest_measurement
+        from datetime import date
+
+        # Parse command
+        # /measure chest=95 waist=78 [date]
+        parts = text.split()
+        measurement_date = str(date.today())
+        parsed_measurements = {}
+
+        for part in parts[1:]:
+            if '=' in part:
+                key, val = part.split('=', 1)
+                key = key.strip().lower()
+                val = val.strip()
+                # Map common aliases
+                alias_map = {
+                    'chest': 'chest',
+                    'waist': 'waist',
+                    'hips': 'hips',
+                    'biceps_l': 'biceps_l',
+                    'biceps_r': 'biceps_r',
+                    'b_l': 'biceps_l',
+                    'b_r': 'biceps_r',
+                    'thigh_l': 'thigh_l',
+                    'thigh_r': 'thigh_r',
+                    't_l': 'thigh_l',
+                    't_r': 'thigh_r',
+                    'note': 'notes',
+                    'notes': 'notes',
+                }
+                if key in alias_map:
+                    try:
+                        parsed_measurements[alias_map[key]] = float(val)
+                    except ValueError:
+                        return {
+                            "method": "sendMessage",
+                            "chat_id": chat_id,
+                            "text": "⚠️ Невірне значення для " + key + ": " + val + ". Вкажи число.",
+                        }
+                else:
+                    return {
+                        "method": "sendMessage",
+                        "chat_id": chat_id,
+                        "text": "⚠️ Невідоме поле: " + key + ". Дозволені: chest, waist, hips, biceps_l, biceps_r, thigh_l, thigh_r",
+                    }
+            elif '-' in part and len(part) == 10:
+                # Looks like a date
+                measurement_date = part
+
+        # Log if measurements provided
+        if parsed_measurements:
+            try:
+                log_measurement(user['id'], measurement_date=measurement_date, **parsed_measurements)
+            except Exception as e:
+                return {
+                    "method": "sendMessage",
+                    "chat_id": chat_id,
+                    "text": "❌ Не вдалося зберегти заміри: " + str(e),
+                }
+
+            lines = ["📏 *Заміри записано!*"]
+            if measurement_date == str(date.today()):
+                lines.append("📅 Сьогодні")
+            else:
+                lines.append("📅 " + measurement_date)
+            for k, v in parsed_measurements.items():
+                labels = {
+                    'chest': 'Груди',
+                    'waist': 'Талія',
+                    'hips': 'Стегна',
+                    'biceps_l': 'Біцепс ℒ',
+                    'biceps_r': 'Біцепс ɍ',
+                    'thigh_l': 'Стегно ℒ',
+                    'thigh_r': 'Стегно ɍ',
+                    'notes': 'Нотатки',
+                }
+                lines.append(labels.get(k, k) + ": *" + str(v) + "*")
+            lines.append("\n💡 Відкрий додаток щоб побачити графік!")
+            return {
+                "method": "sendMessage",
+                "chat_id": chat_id,
+                "text": "\n".join(lines),
+                "parse_mode": "Markdown",
+            }
+
+        # Show history
+        latest = get_latest_measurement(user['id'])
+        history = get_measurement_history(user['id'], limit=30)
+
+        lines = ["📏 *Заміри тіла*\n"]
+
+        if latest:
+            latest_date = date.fromisoformat(latest['date'])
+            days_ago = (date.today() - latest_date).days
+            age_str = "" if days_ago == 0 else (" ("+str(days_ago)+" дн. тому)" if days_ago > 0 else " (сьогодні)")
+            lines.append("📅 *Останні:* " + latest['date'] + age_str)
+
+            # Show latest values with emoji
+            fields = [
+                ('chest', 'Груди', '💪'),
+                ('waist', 'Талія', '📐'),
+                ('hips', 'Стегна', '🦵'),
+                ('biceps_l', 'Біцепс ℒ', '💪'),
+                ('biceps_r', 'Біцепс ɍ', '💪'),
+                ('thigh_l', 'Стегно ℒ', '🦵'),
+                ('thigh_r', 'Стегно ɍ', '🦵'),
+            ]
+            for key, label, icon in fields:
+                val = latest.get(key)
+                if val is not None and val > 0:
+                    lines.append("  " + icon + " " + label + ": *" + str(val) + "* см")
+        else:
+            lines.append("Немає даних. Додай перші заміри!")
+
+        if history and len(history) > 1:
+            lines.append("\n📋 Останні записи:")
+            for entry in reversed(history[:5]):
+                d = date.fromisoformat(entry['date'])
+                day_name = d.strftime("%d.%m")
+                chest = entry.get('chest')
+                waist = entry.get('waist')
+                if chest or waist:
+                    parts_str = []
+                    if chest: parts_str.append("г:"+str(chest))
+                    if waist: parts_str.append("т:"+str(waist))
+                    lines.append("  " + day_name + ": " + ", ".join(parts_str))
+
+        lines.append("\n💡 /measure chest=95 waist=78 — записати заміри")
+        return {
+            "method": "sendMessage",
+            "chat_id": chat_id,
+            "text": "\n".join(lines),
+            "parse_mode": "Markdown",
+        }
+
+    except Exception as e:
+        import traceback
+        return {
+            "method": "sendMessage",
+            "chat_id": chat_id,
+            "text": "❌ Не вдалося завантажити дані про заміри: " + str(e),
         }
 
 def _handle_tdee(chat_id: int) -> dict:
