@@ -42,6 +42,8 @@ def handle_telegram_update(update_data: dict) -> dict:
         return _handle_next(chat_id)
     if text.startswith('/meals'):
         return _handle_meals(chat_id)
+    if text.startswith('/profile'):
+        return _handle_profile(chat_id)
     if text.startswith('/progress'):
         return _handle_progress(chat_id)
     if text.startswith('/tdee'):
@@ -99,6 +101,7 @@ def _handle_help(chat_id: int) -> dict:
         "/stats — Загальна статистика (тренування, вага, заміри)\n"
         "/sleep — Переглянути або записати сон\n"
         "/tdee — Добова норма калорій та макроси\n"
+        "/profile — Твій профіль та біо дані\n"
         "/progress — Прогрес: вага, заміри, тренування\n"
         "/program — Твоя тренувальна програма\n"
         "/next — Що тренувати сьогодні\n"
@@ -1666,6 +1669,125 @@ def _handle_progress(chat_id: int) -> dict:
             "method": "sendMessage",
             "chat_id": chat_id,
             "text": "❌ Не вдалося завантажити прогрес: " + str(e),
+        }
+
+def _handle_profile(chat_id: int) -> dict:
+    """Handle /profile command — show user profile summary."""
+    user = _get_user(chat_id)
+    if not user or not user.get('onboarding_completed'):
+        return {
+            "method": "sendMessage",
+            "chat_id": chat_id,
+            "text": "👋 Ти ще не пройшов онбординг! Натисни /start щоб почати.",
+        }
+
+    try:
+        from models.weight_log import get_latest_weight
+        from models.measurement import get_latest_measurement
+        from models.training_session import get_training_sessions
+        from datetime import date
+
+        lines = ["👤 *Твій профіль*\n"]
+
+        # Name
+        name = user.get('name', '')
+        if name:
+            lines.append(f"Ім'я: {name}")
+
+        # Gender + Age + Height
+        gender_map = {'male': 'Чоловік', 'female': 'Жінка', 'other': 'Інше'}
+        gender = gender_map.get(user.get('gender', ''), user.get('gender', '—'))
+        age = user.get('age') or '—'
+        height = user.get('height_cm') or '—'
+        lines.append(f"Стать: {gender} | Вік: {age} | Зріст: {height} см")
+
+        # Current weight (latest logged, not onboarding weight)
+        latest_weight = get_latest_weight(user['id'])
+        if latest_weight:
+            lines.append(f"Поточна вага: {latest_weight.get('weight_kg')} кг")
+        else:
+            onboarding_weight = user.get('weight_kg', '—')
+            lines.append(f"Вага (онбординг): {inboarding_weight} кг")
+
+        # Experience + training days
+        exp_map = {
+            'beginner': 'Початківець',
+            'intermediate': 'Середній',
+            'advanced': 'Просунутий',
+        }
+        exp = exp_map.get(user.get('experience_level', ''), user.get('experience_level', '—'))
+        training_days = user.get('training_days_per_week', '—')
+        lines.append(f"Досвід: {exp} | Тренувань/тиждень: {training_days}")
+
+        # Primary goal
+        goal_map = {
+            'muscle_gain': '📈 Набір маси',
+            'fat_loss': '🔥 Жироспалення',
+            'strength': '💪 Сила',
+            'health': "❤️ Здоров'я",
+            'recomposition': '♻️ Рекомпозиція',
+        }
+        goal = goal_map.get(user.get('primary_goal', ''), user.get('primary_goal', '—'))
+        lines.append(f"Мета: {goal}")
+
+        # Secondary goals
+        try:
+            import json
+            secondary = json.loads(user.get('secondary_goals', '[]'))
+            if secondary:
+                goal_labels = list(goal_map.values())
+                secondary_labels = [goal_labels[int(g)] if g.isdigit() and int(g) < len(goal_labels) else g for g in secondary]
+                lines.append(f"Додаткові цілі: {', '.join(secondary_labels)}")
+        except:
+            pass
+
+        # Latest measurements
+        meas = get_latest_measurement(user['id'])
+        if meas:
+            date_str = meas.get('date', '')[:5]
+            lines.append(f"\n📏 Останні заміри ({date_str}):")
+            field_map = {
+                'biceps_l': 'Біцепс лівий',
+                'biceps_r': 'Біцепс правий',
+                'chest': 'Груди',
+                'waist': 'Талія',
+                'hips': 'Стегна',
+                'thigh_l': 'Стегно ліве',
+                'thigh_r': 'Стегно праве',
+            }
+            parts = []
+            for field, label in field_map.items():
+                val = meas.get(field)
+                if val:
+                    parts.append(f"{label} {val}")
+            if parts:
+                lines.append(", ".join(parts))
+
+        # Active training program
+        try:
+            from models.training_program import get_active_training_program
+            active = get_active_training_program(user['id'])
+            if active:
+                lines.append(f"\n📋 Програма: {active.get('name', 'Моя програма')}")
+        except:
+            pass
+
+        lines.append(f"\n💡 /tdee — розрахунок калорій та макросів")
+        lines.append(f"💡 /progress — прогрес тренувань")
+
+        return {
+            "method": "sendMessage",
+            "chat_id": chat_id,
+            "text": "\n".join(lines),
+            "parse_mode": "Markdown",
+        }
+
+    except Exception as e:
+        import traceback
+        return {
+            "method": "sendMessage",
+            "chat_id": chat_id,
+            "text": "❌ Не вдалося завантажити профіль: " + str(e),
         }
 
 def _handle_tdee(chat_id: int) -> dict:
