@@ -201,6 +201,31 @@
             color: #a0a0a0;
         }
 
+        /* Stats summary row */
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+        .stat-box {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 10px 6px;
+            text-align: center;
+        }
+        .stat-label {
+            font-size: 10px;
+            color: #888;
+            margin-bottom: 4px;
+        }
+        .stat-value {
+            font-size: 15px;
+            font-weight: 700;
+            color: var(--text);
+        }
+
         /* Form styles */
         .form-group {
             margin-bottom: 16px;
@@ -627,9 +652,24 @@
         <div id="tab-progress" class="tab-content">
             <div class="page-header">📊 Прогрес</div>
 
-            <!-- Streak -->
-            <div class="card">
-                <div id="progress-streak" class="card-title">Завантаження...</div>
+            <!-- Stats Summary Row -->
+            <div class="stats-row">
+                <div class="stat-box">
+                    <div class="stat-label">💪 Всього</div>
+                    <div class="stat-value" id="stat-total-workouts">—</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">🔥 Streak</div>
+                    <div class="stat-value" id="stat-streak">—</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">⚖️ Вага</div>
+                    <div class="stat-value" id="stat-weight">—</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">📈/тижд</div>
+                    <div class="stat-value" id="stat-per-week">—</div>
+                </div>
             </div>
 
             <!-- Active Program -->
@@ -1659,6 +1699,23 @@
                 } else {
                     streakEl.textContent = 'Розпочни тренуватися!';
                 }
+
+                // Stats summary row
+                const totalEl = document.getElementById('stat-total-workouts');
+                const statStreakEl = document.getElementById('stat-streak');
+                const statWeightEl = document.getElementById('stat-weight');
+                const statPerWeekEl = document.getElementById('stat-per-week');
+                if (totalEl) totalEl.textContent = d.total_workouts || 0;
+                if (statStreakEl) statStreakEl.textContent = (d.streak_weeks !== undefined ? d.streak_weeks + 'т' : '—');
+                if (statWeightEl) {
+                    if (d.weight_change !== undefined && d.weight_change !== null) {
+                        var wc = d.weight_change;
+                        statWeightEl.textContent = (wc > 0 ? '+' : '') + wc + 'к';
+                    } else {
+                        statWeightEl.textContent = '—';
+                    }
+                }
+                if (statPerWeekEl) statPerWeekEl.textContent = d.avg_workouts_per_week || 0;
 
                 // Active program
                 const progEl = document.getElementById('progress-program');

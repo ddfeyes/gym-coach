@@ -164,4 +164,7 @@ def get_progress():
         "sleep_history": sleep_history,
         "water_history": water_history,
         "nutrition_history": nutrition_history,
+        "total_workouts": sum(t['count'] for t in training_per_week) if training_per_week else 0,
+        "avg_workouts_per_week": round(sum(t['count'] for t in training_per_week) / len(training_per_week), 1) if training_per_week else 0,
+        "weight_change": round(weight_history[0]['weight_kg'] - weight_history[-1]['weight_kg'], 1) if len(weight_history) >= 2 else None,
     })
