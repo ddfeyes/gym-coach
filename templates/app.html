@@ -1514,15 +1514,30 @@
                     weightEl.innerHTML = '<div style="color:#888;font-size:13px">Немає даних про вагу</div>';
                 }
 
-                // Training per week
+                // Training heatmap
                 const trainingEl = document.getElementById('progress-training');
                 const tw = d.training_per_week || [];
                 if (tw.length > 0) {
                     const maxC = Math.max(...tw.map(t => t.count), 1);
-                    trainingEl.innerHTML = tw.map(function(t) {
-                        const barW = (t.count / maxC) * 100;
-                        return '<div class="progress-bar-row"><span class="progress-label">Тиж. ' + t.week + '</span><div class="progress-bar-wrap"><div class="progress-bar-fill training" style="width:' + barW + '%"></div></div><span class="progress-value">' + t.count + '</span></div>';
-                    }).join('');
+                    let heatmapHTML = '<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:4px;">';
+                    tw.slice(-12).forEach(function(t) {
+                        var bg;
+                        if (t.count === 0) bg = '#1a1a1a';
+                        else if (t.count === 1) bg = '#1e3a5f';
+                        else if (t.count === 2) bg = '#2563eb';
+                        else if (t.count === 3) bg = '#4f46e5';
+                        else bg = '#6366f1';
+                        heatmapHTML += '<div style="width:38px;height:38px;background:' + bg + ';border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;color:#fff;flex-direction:column;">' +
+                            '<span>' + t.count + '</span>' +
+                            '<span style="font-size:8px;font-weight:400;opacity:0.7;">' + t.week + '</span>' +
+                            '</div>';
+                    });
+                    heatmapHTML += '</div>';
+                    heatmapHTML += '<div style="margin-top:8px;display:flex;gap:8px;font-size:10px;color:#666;flex-wrap:wrap;">';
+                    heatmapHTML += '<span>Тижнів з даними: ' + tw.length + '</span>';
+                    heatmapHTML += '<span>Макс/тиждень: ' + maxC + '</span>';
+                    heatmapHTML += '</div>';
+                    trainingEl.innerHTML = heatmapHTML;
                 } else {
                     trainingEl.innerHTML = '<div style="color:#888;font-size:13px">Немає даних про тренування</div>';
                 }
