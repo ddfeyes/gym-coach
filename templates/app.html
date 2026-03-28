@@ -1489,22 +1489,35 @@
                             <div><div style="font-size:24px;font-weight:700">${avgQ}/5</div><div style="color:#a0a0a0;font-size:12px">Якість</div></div>
                         </div>
                     </div>
-                    <div class="card">
-                        <div class="card-title">😴 Відмітити сьогодні</div>
-                        <div style="display:flex;gap:8px;align-items:center;margin-top:8px;">
-                            <input type="number" class="form-input" id="sleep-hours" placeholder="Годин" step="0.5" min="0" max="24" style="width:80px;">
-                            <span style="color:#a0a0a0">годин</span>
-                            <select class="form-select" id="sleep-quality" style="width:100px;">
-                                <option value="1">😴</option>
-                                <option value="2">🙁</option>
-                                <option value="3" selected>😐</option>
-                                <option value="4">🙂</option>
-                                <option value="5">😊</option>
-                            </select>
-                            <button class="btn-primary" onclick="logSleep()" id="sleep-btn" style="flex:1;">Зберегти</button>
-                        </div>
-                    </div>
                 `;
+
+                // Sleep chart
+                if (entries.length > 0) {
+                    const chartW = 340, chartH = 90, padX = 28, padY = 12;
+                    const maxHours = 12;
+                    const barW = Math.max(8, Math.min(28, (chartW - padX * 2) / entries.length - 6));
+                    const gap = ((chartW - padX * 2) - barW * entries.length) / (entries.length + 1);
+                    let barsHtml = '';
+                    const dayNames = ['Нд', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
+                    entries.slice().reverse().forEach(function(e, i) {
+                        const barH = Math.max(2, (e.hours / maxHours) * (chartH - padY * 2));
+                        const x = padX + gap + i * (barW + gap);
+                        const y = chartH - padY - barH;
+                        const col = e.quality >= 4 ? '#22c55e' : e.quality >= 3 ? '#f59e0b' : '#ef4444';
+                        const dayLabel = dayNames[new Date(e.date + 'T00:00:00').getDay()];
+                        barsHtml += '<rect x="' + x + '" y="' + y + '" width="' + barW + '" height="' + barH + '" fill="' + col + '" rx="3"/>';
+                        barsHtml += '<text x="' + (x + barW/2) + '" y="' + (chartH - 2) + '" text-anchor="middle" fill="#888" font-size="9">' + dayLabel + '</text>';
+                        if (e.hours > 0) {
+                            barsHtml += '<text x="' + (x + barW/2) + '" y="' + (y - 3) + '" text-anchor="middle" fill="#aaa" font-size="8">' + e.hours + 'г</text>';
+                        }
+                    });
+                    html += '<div class="card"><div class="card-title">😴 Сон по днях</div>';
+                    html += '<svg viewBox="0 0 ' + chartW + ' ' + chartH + '" style="width:100%;margin-top:8px;">';
+                    html += barsHtml;
+                    html += '</svg></div>';
+                }
+
+                html += '<div class="card"><div class="card-title">😴 Відмітити сьогодні</div><div style="display:flex;gap:8px;align-items:center;margin-top:8px;"><input type="number" class="form-input" id="sleep-hours" placeholder="Годин" step="0.5" min="0" max="24" style="width:80px;"><span style="color:#a0a0a0">годин</span><select class="form-select" id="sleep-quality" style="width:100px;"><option value="1">😴</option><option value="2">🙁</option><option value="3" selected>😐</option><option value="4">🙂</option><option value="5">😊</option></select><button class="btn-primary" onclick="logSleep()" id="sleep-btn" style="flex:1;">Зберегти</button></div></div>';
 
                 if (entries.length > 0) {
                     html += '<div class="card"><div class="card-title">Історія</div>';
