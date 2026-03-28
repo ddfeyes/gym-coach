@@ -26,6 +26,8 @@ def handle_telegram_update(update_data: dict) -> dict:
         return _handle_log(chat_id, text[5:].strip())
     if text.startswith('/workout'):
         return _handle_workout(chat_id)
+    if text.startswith('/water'):
+        return _handle_water(chat_id, text)
     if text.startswith('/week'):
         return _handle_week(chat_id)
     if text.startswith('/month'):
@@ -86,7 +88,8 @@ def _handle_help(chat_id: int) -> dict:
         "/tdee — Добова норма калорій та макроси\n"
         "/program — Твоя тренувальна програма\n"
         "/log <опис> — Швидко залогировать прийом їжі\n"
-        "/workout — Залогировать тренування\n\n"
+        "/workout — Залогировать тренування\n"
+        "/water [мл] — Додати води або переглянути\n\n"
         "💬 Або просто напиши мені — я відповім!"
     )
 
@@ -437,6 +440,98 @@ def _handle_workout(chat_id: int) -> dict:
             "chat_id": chat_id,
             "text": "❌ Не вдалося залогировать. Спробуй пізніше.",
         }
+
+
+def _handle_water(chat_id: int, text: str) -> dict:
+    """Handle /water command — show today's water or log water intake.
+    /water — show today's water + 7-day history
+    /water 250 or /water +250 — add 250ml to today's total
+    """
+    user = _get_user(chat_id)
+    if not user or not user.get('onboarding_completed'):
+        return {
+            "method": "sendMessage",
+            "chat_id": chat_id,
+            "text": "👋 Ти ще не пройшов онбординг! Натисни /start щоб почати.",
+        }
+
+    try:
+        from models.water_log import log_water, get_daily_water, get_water_history
+        from datetime import date
+
+        today = str(date.today())
+        target = 2500  # ml
+
+        # Parse amount from command
+        # /water 250 or /water +250
+        parts = text.split()
+        amount = None
+        if len(parts) > 1:
+            val = parts[1].strip()
+            if val.startswith('+'):
+                val = val[1:]
+            if val.isdigit():
+                amount = int(val)
+
+        # Log water if amount provided
+        if amount and amount > 0:
+            if amount > 5000:
+                return {
+                    "method": "sendMessage",
+                    "chat_id": chat_id,
+                    "text": "⚠️ Занадто багато! Максимум 5000мл за раз.",
+                }
+            log_water(user['id'], amount)
+            new_total = get_daily_water(user['id'], today).get('amount_ml', 0)
+            pct = min(round(new_total / target * 100), 100)
+            bars = "█" * (pct // 10) + "░" * (10 - pct // 10)
+            msg = "💧 Додано +" + str(amount) + "мл\n\n💧 " + str(new_total) + " / " + str(target) + " мл [" + bars + "] " + str(pct) + "%"
+            return {
+                "method": "sendMessage",
+                "chat_id": chat_id,
+                "text": msg,
+            }
+
+        # Show today's water + 7-day history
+        today_water = get_daily_water(user['id'], today)
+        today_ml = today_water.get('amount_ml', 0)
+        history = get_water_history(user['id'], 7)
+
+        lines = ["💧 *Вода*\n"]
+        pct = min(round(today_ml / target * 100), 100)
+        bars = "█" * (pct // 10) + "░" * (10 - pct // 10)
+        lines.append("Сьогодні: " + str(today_ml) + " / " + str(target) + " мл")
+        lines.append("[" + bars + "] " + str(pct) + "%")
+
+        if history:
+            lines.append("\n📋 Останні дні:")
+            for entry in history[:7]:
+                d = date.fromisoformat(entry['date'])
+                day_name = d.strftime("%d.%m")
+                ml = entry['amount_ml']
+                if ml >= target:
+                    icon = "✅"
+                elif ml >= target * 0.5:
+                    icon = "🔶"
+                else:
+                    icon = "⚪"
+                lines.append("  " + icon + " " + day_name + ": " + str(ml) + "мл")
+
+        lines.append("\n💡 /water 250 — додати води")
+        return {
+            "method": "sendMessage",
+            "chat_id": chat_id,
+            "text": "\n".join(lines),
+            "parse_mode": "Markdown",
+        }
+
+    except Exception as e:
+        return {
+            "method": "sendMessage",
+            "chat_id": chat_id,
+            "text": "❌ Не вдалося завантажити дані про воду.",
+        }
+
 
 
 def _handle_week(chat_id: int) -> dict:
