@@ -29,6 +29,14 @@ def handle_telegram_update(update_data: dict) -> dict:
             return _handle_inline_water(chat_id, message_id, callback_query['id'])
         elif data == 'action:workout':
             return _handle_inline_workout(chat_id, message_id, callback_query['id'])
+        elif data == 'action:workout_30':
+            return _handle_inline_workout_duration(chat_id, message_id, callback_query['id'], 30)
+        elif data == 'action:workout_45':
+            return _handle_inline_workout_duration(chat_id, message_id, callback_query['id'], 45)
+        elif data == 'action:workout_60':
+            return _handle_inline_workout_duration(chat_id, message_id, callback_query['id'], 60)
+        elif data == 'action:workout_90':
+            return _handle_inline_workout_duration(chat_id, message_id, callback_query['id'], 90)
         elif data == 'action:week':
             return _handle_inline_week(chat_id, message_id, callback_query['id'])
         elif data == 'action:progress':
@@ -2366,15 +2374,60 @@ def _handle_inline_water(chat_id: int, message_id: int, cq_id: str) -> dict:
 
 
 def _handle_inline_workout(chat_id: int, message_id: int, cq_id: str) -> dict:
-    """Show workout logging instructions."""
+    """Show workout logging options with duration presets."""
+    user = _get_user(chat_id)
+    today_workout = None
+    if user and user.get('onboarding_completed'):
+        try:
+            from models.training_program import get_active_training_program
+            from datetime import date
+            active = get_active_training_program(user['id'])
+            if active and active.get('schedule'):
+                today = date.today()
+                schedule = active['schedule']
+                day_idx = today.weekday() % len(schedule)
+                today_workout = schedule[day_idx]
+        except Exception:
+            pass
+
+    header = "💪 *Лог тренування*"
+    if today_workout:
+        header += f"\n📋 Сьогодні: {today_workout}"
+    header += "\n\nОбери тривалість або використай `/workout`"
+
     return {
         "method": "editMessageText",
         "chat_id": chat_id,
         "message_id": message_id,
-        "text": "💪 *Лог тренування*\n\nВикористай:\n`/workout` — швидкий лог\n`/workout 45` — з тривалістю\n`/workout 45 \"Upper body\"` — з нотатками",
+        "text": header,
         "parse_mode": "Markdown",
         "reply_markup": json.dumps({
-            "inline_keyboard": [[{"text": "🍽️ Лог їжі", "callback_data": "action:log"}, {"text": "💧 Вода", "callback_data": "action:water"}]],
+            "inline_keyboard": [[
+                {"text": "⏱️ 30 хв", "callback_data": "action:workout_30"},
+                {"text": "⏱️ 45 хв", "callback_data": "action:workout_45"},
+                {"text": "⏱️ 60 хв", "callback_data": "action:workout_60"},
+                {"text": "⏱️ 90 хв", "callback_data": "action:workout_90"},
+            ], [
+                {"text": "🍽️ Лог їжі", "callback_data": "action:log"},
+                {"text": "💧 Вода", "callback_data": "action:water"},
+            ]],
+        }),
+    }
+
+
+def _handle_inline_workout_duration(chat_id: int, message_id: int, cq_id: str, duration: int) -> dict:
+    """Show format hint for specific workout duration."""
+    return {
+        "method": "editMessageText",
+        "chat_id": chat_id,
+        "message_id": message_id,
+        "text": f"⏱️ *Тренування {duration} хв*\n\nСкопіюй:\n`/workout {duration}`\n\nАбо додай нотатку:\n`/workout {duration} \"Upper body\"`",
+        "parse_mode": "Markdown",
+        "reply_markup": json.dumps({
+            "inline_keyboard": [[
+                {"text": "💪 Інша тривалість", "callback_data": "action:workout"},
+                {"text": "🍽️ Лог їжі", "callback_data": "action:log"},
+            ]],
         }),
     }
 
