@@ -1427,12 +1427,12 @@
 
                 html += '<div class="card"><div class="card-title">+ Додати</div>';
                 html += '<div style="display:flex;gap:6px;margin-bottom:8px;">';
-                html += '<button class="meal-btn" onclick="setMealType(this, '\''Сніданок'\'')">🍳 Сніданок</button>';
-                html += '<button class="meal-btn" onclick="setMealType(this, '\''Обід'\'')">🍽️ Обід</button>';
-                html += '<button class="meal-btn" onclick="setMealType(this, '\''Вечеря'\'')">🌙 Вечеря</button>';
-                html += '<button class="meal-btn" onclick="setMealType(this, '\''Перекус'\'')">🍎 Перекус</button>';
+                html += '<button class="meal-btn" onclick="setMealType(this, &quot;Сніданок&quot;)">🍳 Сніданок</button>';
+                html += '<button class="meal-btn" onclick="setMealType(this, &quot;Обід&quot;)">🍽️ Обід</button>';
+                html += '<button class="meal-btn" onclick="setMealType(this, &quot;Вечеря&quot;)">🌙 Вечеря</button>';
+                html += '<button class="meal-btn" onclick="setMealType(this, &quot;Перекус&quot;)">🍎 Перекус</button>';
                 html += '</div>';
-                html += '<input type="text" class="form-input" id="meal-desc" placeholder="Що з\\'їв? (напр. курча з рисом)">';
+                html += '<input type="text" class="form-input" id="meal-desc" placeholder="Що з\'їв? (напр. курча з рисом)">';
                 html += '<button class="btn-primary" onclick="logMeal()" id="log-meal-btn" style="margin-top:8px">Додати</button></div>';
 
                 // Water tracking
@@ -1983,14 +1983,14 @@
 
                 // Water — horizontal bar chart (last 7 days)
                 const waterEl = document.getElementById('progress-water');
-                const wh = d.water_history || [];
+                const waterHistory = d.water_history || [];
                 const waterTarget = 2500;
-                if (wh.length > 0) {
-                    const maxWater = Math.max.apply(null, wh.map(function(w) { return w.amount_ml || 0; }).concat([waterTarget]));
-                    const W = 340, H = wh.length * 32 + 16, PAD = 8;
+                if (waterHistory.length > 0) {
+                    const maxWater = Math.max.apply(null, waterHistory.map(function(w) { return w.amount_ml || 0; }).concat([waterTarget]));
+                    const W = 340, H = waterHistory.length * 32 + 16, PAD = 8;
                     const barH = 18;
                     let bars = '';
-                    wh.forEach(function(w, i) {
+                    waterHistory.forEach(function(w, i) {
                         var y = PAD + i * 32;
                         var pct = Math.min((w.amount_ml / waterTarget) * 100, 100);
                         var barW = (pct / 100) * (W - PAD * 2 - 50);
