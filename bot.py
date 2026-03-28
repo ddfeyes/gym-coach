@@ -17,6 +17,14 @@ def handle_telegram_update(update_data: dict) -> dict:
         # Route callback data to appropriate handler
         if data == 'action:log':
             return _handle_inline_log(chat_id, message_id, callback_query['id'])
+        elif data == 'action:log_snidanok':
+            return _handle_inline_log_meal(chat_id, message_id, callback_query['id'], 'snidanok')
+        elif data == 'action:log_obid':
+            return _handle_inline_log_meal(chat_id, message_id, callback_query['id'], 'obid')
+        elif data == 'action:log_vecherya':
+            return _handle_inline_log_meal(chat_id, message_id, callback_query['id'], 'vecherya')
+        elif data == 'action:log_perekus':
+            return _handle_inline_log_meal(chat_id, message_id, callback_query['id'], 'perekus')
         elif data == 'action:water':
             return _handle_inline_water(chat_id, message_id, callback_query['id'])
         elif data == 'action:workout':
@@ -2285,15 +2293,47 @@ def _handle_ai_message(chat_id: int, text: str) -> dict:
     return reply
 
 def _handle_inline_log(chat_id: int, message_id: int, cq_id: str) -> dict:
-    """Respond to inline log food button."""
+    """Respond to inline log food button — show meal type quick-add options."""
     return {
         "method": "editMessageText",
         "chat_id": chat_id,
         "message_id": message_id,
-        "text": "🍽️ *Лог прийому їжі*\n\nВикористай команду:\n`/log Обід: курча з рисом`\n\nПриклади:\n`/log Сніданок: вівсянка з бананом`\n`/log Перекус: йогурт`",
+        "text": "🍽️ *Лог прийому їжі*\n\nОбери тип прийому або використай:\n`/log Обід: курча з рисом`",
         "parse_mode": "Markdown",
         "reply_markup": json.dumps({
-            "inline_keyboard": [[{"text": "💧 Вода", "callback_data": "action:water"}, {"text": "💪 Тренування", "callback_data": "action:workout"}]],
+            "inline_keyboard": [[
+                {"text": "🍳 Сніданок", "callback_data": "action:log_snidanok"},
+                {"text": "🍲 Обід", "callback_data": "action:log_obid"},
+                {"text": "🍽️ Вечеря", "callback_data": "action:log_vecherya"},
+            ], [
+                {"text": "🍎 Перекус", "callback_data": "action:log_perekus"},
+                {"text": "💧 Вода", "callback_data": "action:water"},
+                {"text": "💪 Тренування", "callback_data": "action:workout"},
+            ]],
+        }),
+    }
+
+
+def _handle_inline_log_meal(chat_id: int, message_id: int, cq_id: str, meal_type: str) -> dict:
+    """Show format hint for specific meal type."""
+    meal_hints = {
+        "snidanok": "🍳 *Сніданок* — приклад:\n`/log Сніданок: вівсянка з бананом і медом`",
+        "obid": "🍲 *Обід* — приклад:\n`/log Обід: курча з рисом і овочами`",
+        "vecherya": "🍽️ *Вечеря* — приклад:\n`/log Вечеря: салат з лососем`",
+        "perekus": "🍎 *Перекус* — приклад:\n`/log Перекус: йогурт з горіхами`",
+    }
+    hint = meal_hints.get(meal_type, "Вибери тип прийому їжі")
+    return {
+        "method": "editMessageText",
+        "chat_id": chat_id,
+        "message_id": message_id,
+        "text": hint + "\n\n_Скопіюй і заміни на своє_",
+        "parse_mode": "Markdown",
+        "reply_markup": json.dumps({
+            "inline_keyboard": [[
+                {"text": "🍽️ Інший прийом", "callback_data": "action:log"},
+                {"text": "💧 Вода", "callback_data": "action:water"},
+            ]],
         }),
     }
 
