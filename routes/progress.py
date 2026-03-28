@@ -93,10 +93,14 @@ def get_progress():
         "created_at": active[1]
     } if active else None
 
-    # Current streak (consecutive weeks with training)
+    # Current streak (consecutive weeks with training, from most recent backward)
     streak = 0
     if training_per_week:
-        streak = len([t for t in training_per_week if t['count'] > 0])
+        for t in reversed(training_per_week):
+            if t['count'] > 0:
+                streak += 1
+            else:
+                break
 
     # Sleep history — last 14 days
     sleep_rows = db.execute("""

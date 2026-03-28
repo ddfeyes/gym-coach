@@ -1,7 +1,7 @@
-last_update: "2026-03-28T03:33:00Z"
-current_task: "Kaizen cycle — training heatmap"
+last_update: "2026-03-28T03:56:00Z"
+current_task: "Kaizen cycle — sleep line chart"
 status: done
-change: "Added training heatmap to Progress tab — weekly training frequency grid with color intensity"
-PR: "#37"
-issue: "#36"
+change: "Added SVG line chart for sleep hours trend in Progress tab + sleep history in progress API"
+PR: "#39"
+issue: "#38"
 next: "awaiting next kaizen cycle"
