@@ -1,7 +1,7 @@
-last_update: "2026-03-28T03:18:00Z"
-current_task: "Kaizen cycle — measurements line charts"
+last_update: "2026-03-28T03:33:00Z"
+current_task: "Kaizen cycle — training heatmap"
 status: done
-change: "Added SVG line charts for body measurements (biceps, chest, waist, hips, thighs) in Progress tab"
-PR: "#35"
-issue: "#34"
+change: "Added training heatmap to Progress tab — weekly training frequency grid with color intensity"
+PR: "#37"
+issue: "#36"
 next: "awaiting next kaizen cycle"
