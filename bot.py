@@ -117,10 +117,12 @@ def _handle_today(chat_id: int) -> dict:
     try:
         from models.nutrition import get_daily_summary
         from models.sleep_log import get_latest_weight
+        from models.training_session import get_sessions_by_date_range
 
         today = str(__import__('datetime').date.today())
         nutrition = get_daily_summary(user['id'], today)
         latest_weight = get_latest_weight(user['id'])
+        today_sessions = get_sessions_by_date_range(user['id'], today, today)
 
         lines = ["📊 *Сьогодні:*"]
 
@@ -133,6 +135,14 @@ def _handle_today(chat_id: int) -> dict:
 
         if latest_weight:
             lines.append(f"⚖️ Вага: {latest_weight['weight_kg']} кг")
+
+        if today_sessions:
+            session = today_sessions[0]
+            program = session.get('program_name', 'Тренування')
+            duration = session.get('duration_minutes', 0)
+            lines.append(f"💪 {program} ({duration} хв)")
+        else:
+            lines.append("💪 Тренувань немає / /workout щоб залогити")
 
         lines.append("")
         lines.append("💪 Натисни /log щоб додати прийом їжі!")
