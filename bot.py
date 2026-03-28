@@ -16,6 +16,8 @@ def handle_telegram_update(update_data: dict) -> dict:
         return _handle_start(chat_id)
     if text == '/help' or text == '/menu':
         return _handle_help(chat_id)
+    if text.startswith('/stats'):
+        return _handle_stats(chat_id)
     if text.startswith('/today') or text.startswith('/stats'):
         return _handle_today(chat_id)
     if text.startswith('/program'):
@@ -77,6 +79,7 @@ def _handle_help(chat_id: int) -> dict:
         "/help — Показати це меню\n"
         "/today — Сьогоднішній трекінг (калорії, сон)\n"
         "/week — Тижнева статистика\n"
+        "/stats — Загальна статистика (тренування, вага, заміри)\n"
         "/tdee — Добова норма калорій та макроси\n"
         "/program — Твоя тренувальна програма\n"
         "/log <опис> — Швидко залогировать прийом їжі\n"
@@ -517,6 +520,112 @@ def _handle_week(chat_id: int) -> dict:
             "chat_id": chat_id,
             "text": "❌ Не вдалося завантажити тижневу статистику.",
         }
+
+
+def _handle_stats(chat_id: int) -> dict:
+    """Show user's overall training and progress stats."""
+    user = _get_user(chat_id)
+    if not user or not user.get('onboarding_completed'):
+        return {
+            "method": "sendMessage",
+            "chat_id": chat_id,
+            "text": "👋 Ти ще не пройшов онбординг! Натисни /start щоб почати.",
+        }
+
+    try:
+        from models.training_session import get_sessions_by_date_range, get_training_sessions
+        from models.weight_log import get_weight_history, get_latest_weight
+        from models.measurement import get_latest_measurement
+        from datetime import date, timedelta
+
+        today = date.today()
+        today_str = str(today)
+
+        lines = ["📊 *Прогресс / Статистика*\n"]
+
+        # === Workouts ===
+        all_sessions = get_training_sessions(user['id'], limit=1000)
+        total_workouts = len(all_sessions)
+
+        # Current streak
+        streak = 0
+        if all_sessions:
+            current_week_start = today - timedelta(days=today.weekday())
+            while True:
+                w_start = current_week_start - timedelta(weeks=streak)
+                w_end = w_start + timedelta(days=6)
+                week_sessions = [s for s in all_sessions
+                               if w_start <= date.fromisoformat(s['date']) <= w_end]
+                if week_sessions:
+                    streak += 1
+                    current_week_start = w_start - timedelta(days=1)
+                else:
+                    break
+
+        # Workouts per week (average)
+        if all_sessions and total_workouts > 0:
+            first_session_date = date.fromisoformat(all_sessions[-1]['date'])
+            weeks_active = max(1, (today - first_session_date).days / 7)
+            workouts_per_week = round(total_workouts / weeks_active, 1)
+        else:
+            workouts_per_week = 0
+
+        lines.append(f"🏋️ Тренувань всього: {total_workouts}")
+        lines.append(f"📈 За тиждень: {workouts_per_week}/тиждень")
+        if streak > 0:
+            lines.append(f"🔥 Streak: {streak} тижнів")
+
+        # === Weight ===
+        weight_history = get_weight_history(user['id'], limit=100)
+        if len(weight_history) >= 2:
+            latest_w = weight_history[0]['weight_kg']
+            first_w = weight_history[-1]['weight_kg']
+            diff = round(latest_w - first_w, 1)
+            if diff > 0:
+                diff_str = f"(+{diff} кг)"
+            elif diff < 0:
+                diff_str = f"(−{diff} кг)"
+            else:
+                diff_str = "(= 0)"
+            lines.append(f"\n⚖️ Вага: {latest_w} кг {diff_str}")
+        elif weight_history:
+            lines.append(f"\n⚖️ Вага: {weight_history[0]['weight_kg']} кг")
+
+        # === Measurements ===
+        meas = get_latest_measurement(user['id'])
+        if meas:
+            lines.append(f"\n📏 Заміри (останній запис):")
+            field_map = {
+                'biceps_l': 'Біцепс лівий',
+                'biceps_r': 'Біцепс правий',
+                'chest': 'Груди',
+                'waist': 'Талія',
+                'hips': 'Стегна',
+                'thigh_l': 'Стегно ліве',
+                'thigh_r': 'Стегно праве',
+            }
+            for field, label in field_map.items():
+                val = meas.get(field)
+                if val:
+                    lines.append(f"  {label}: {val} см")
+
+        lines.append("\n")
+        lines.append("📋 Відкрий додаток щоб побачити графіки!")
+
+        return {
+            "method": "sendMessage",
+            "chat_id": chat_id,
+            "text": "\n".join(lines),
+            "parse_mode": "Markdown",
+        }
+    except Exception as e:
+        return {
+            "method": "sendMessage",
+            "chat_id": chat_id,
+            "text": "❌ Не вдалося завантажити статистику.",
+        }
+
+
 
 
 
