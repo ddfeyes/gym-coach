@@ -307,7 +307,8 @@ def _handle_today(chat_id: int) -> dict:
                 if schedule and program_day_index < len(schedule):
                     day_label = schedule[program_day_index]
                     day_exercises = [e for e in exercises if e.get('day', 0) == program_day_index + 1]
-                    lines.append(f"📅 *{day_label}*")
+                    done_marker = " ✅" if today_sessions else ""
+                    lines.append(f"📅 *{day_label}*{done_marker}")
                     if day_exercises:
                         for ex in day_exercises[:5]:
                             lines.append(f"  • {ex['exercise']} — {ex['sets']}×{ex['reps']}")
@@ -315,7 +316,7 @@ def _handle_today(chat_id: int) -> dict:
                             lines.append(f"  ...та ще {len(day_exercises) - 5}")
                     else:
                         lines.append("  (вiдпочинок)")
-                elif not today_sessions:
+                elif not schedule and not today_sessions:
                     lines.append("📅 Відпочинок сьогодні")
         except Exception:
             pass
