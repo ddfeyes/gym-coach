@@ -686,6 +686,26 @@
                 </div>
             </div>
 
+            <!-- Stats Summary -->
+            <div class="stats-row">
+                <div class="stat-box">
+                    <div class="stat-label">Тренувань</div>
+                    <div class="stat-value" id="progress-total-workouts">—</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">Стрік</div>
+                    <div class="stat-value" id="progress-streak">—</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">Зміна ваги</div>
+                    <div class="stat-value" id="progress-weight-change">—</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">Сер/тиж</div>
+                    <div class="stat-value" id="progress-avg-workouts">—</div>
+                </div>
+            </div>
+
             <!-- Active Program -->
             <div class="card">
                 <div class="card-title">🏋️ Активна програма</div>
@@ -782,7 +802,7 @@
         </div>
 
         <!-- Profile Edit Modal -->
-        <div id="profile-edit-modal" class="modal-overlay" onclick="closeProfileEdit(event)">
+        <div id="profile-edit-modal" class="modal-overlay hidden" onclick="closeProfileEdit(event)">
             <div class="modal-content" onclick="event.stopPropagation()">
                 <div class="modal-header">
                     <span>✏️ Редагувати профіль</span>
@@ -1818,30 +1838,23 @@
                 if (!res.ok) return;
                 const d = await res.json();
 
-                // Streak
-                const streakEl = document.getElementById('progress-streak');
-                if (d.streak_weeks !== undefined) {
-                    streakEl.innerHTML = '🔥 ' + d.streak_weeks + ' тижнів підряд';
-                } else {
-                    streakEl.textContent = 'Розпочни тренуватися!';
-                }
-
                 // Stats summary row
-                const totalEl = document.getElementById('stat-total-workouts');
-                const statStreakEl = document.getElementById('stat-streak');
-                const statWeightEl = document.getElementById('stat-weight');
-                const statPerWeekEl = document.getElementById('stat-per-week');
+                const totalEl = document.getElementById('progress-total-workouts');
+                const streakEl = document.getElementById('progress-streak');
+                const weightChangeEl = document.getElementById('progress-weight-change');
+                const avgWorkoutsEl = document.getElementById('progress-avg-workouts');
                 if (totalEl) totalEl.textContent = d.total_workouts || 0;
-                if (statStreakEl) statStreakEl.textContent = (d.streak_weeks !== undefined ? d.streak_weeks + 'т' : '—');
-                if (statWeightEl) {
+                if (streakEl) streakEl.textContent = (d.streak_weeks ? d.streak_weeks + 'т' : '0т');
+                if (weightChangeEl) {
                     if (d.weight_change !== undefined && d.weight_change !== null) {
                         var wc = d.weight_change;
-                        statWeightEl.textContent = (wc > 0 ? '+' : '') + wc + 'к';
+                        weightChangeEl.textContent = (wc > 0 ? '+' : '') + wc + 'кг';
+                        weightChangeEl.style.color = wc < 0 ? '#22c55e' : wc > 0 ? '#ef4444' : '#fff';
                     } else {
-                        statWeightEl.textContent = '—';
+                        weightChangeEl.textContent = '—';
                     }
                 }
-                if (statPerWeekEl) statPerWeekEl.textContent = d.avg_workouts_per_week || 0;
+                if (avgWorkoutsEl) avgWorkoutsEl.textContent = d.avg_workouts_per_week || 0;
 
                 // Active program
                 const progEl = document.getElementById('progress-program');
