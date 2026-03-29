@@ -243,7 +243,6 @@ def get_streaks():
         "water": {"current": water_count, "start": water_start, "end": water_end,
                   "best": bests.get('water', {})},
     })
-    db.row_factory = sqlite3.Row
 
     # Weight history — last 30 days (uses created_at, NOT logged_at)
     weight_rows = db.execute("""
