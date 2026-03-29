@@ -267,9 +267,9 @@ def get_progress():
         "goal_weight": goal_weight,
         "goal_date": goal_date,
         "weight_trend": {
-            "slope_kg_per_week": trend_data["slope_kg_per_week"],
-            "r2": trend_data["r2"],
-            "predicted_date": trend_data["predicted_date"],
-            "status_text": trend_data["status_text"],
+            "slope_kg_per_week": trend_data.get("slope_kg_per_week"),
+            "r2": trend_data.get("r2"),
+            "predicted_date": trend_data.get("predicted_date"),
+            "status_text": trend_data.get("status_text"),
         },
     })
