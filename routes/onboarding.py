@@ -196,6 +196,7 @@ def get_or_update_profile():
         'experience_level', 'training_days_per_week', 'primary_goal',
         'secondary_goals', 'gym_type', 'available_equipment',
         'injuries', 'onboarding_completed', 'language',
+        'goal_weight', 'goal_date',
     ]
 
     if request.method == 'GET':
@@ -227,7 +228,7 @@ def get_or_update_profile():
         return jsonify({"error": "JSON body required"}), 400
 
     updatable = ['name', 'weight_kg', 'primary_goal', 'training_days_per_week',
-                 'experience_level', 'gym_type', 'age']
+                 'experience_level', 'gym_type', 'age', 'goal_weight', 'goal_date']
     update_data = {k: v for k, v in data.items() if k in updatable}
 
     if update_data:

@@ -842,6 +842,14 @@
                         </select>
                     </div>
                     <div class="form-group">
+                        <label class="form-label">Цільова вага (кг)</label>
+                        <input type="number" class="form-input" id="pe-goal-weight" step="0.1" min="30" max="300">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Дата цілі</label>
+                        <input type="date" class="form-input" id="pe-goal-date">
+                    </div>
+                    <div class="form-group">
                         <label class="form-label">Тренувань на тиждень</label>
                         <select class="form-select" id="pe-days">
                             <option value="2">2</option>
@@ -1077,12 +1085,17 @@
                 if (dnEl) dnEl.textContent = p.name;
                 if (badgeEl) badgeEl.textContent = (goals[p.primary_goal] || p.primary_goal) + ' · ' + (levels[p.experience_level] || p.experience_level);
 
+                var goalBadge = '';
+                if (p.goal_weight) {
+                    goalBadge = '<div class="stat-box"><div class="stat-label">Ціль</div><div class="stat-value">' + p.goal_weight + ' кг' + (p.goal_date ? ' 🏁 ' + p.goal_date : '') + '</div></div>';
+                }
                 fields.innerHTML = `
                     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
                         <div class="stat-box"><div class="stat-label">Вік</div><div class="stat-value">${p.age} р</div></div>
                         <div class="stat-box"><div class="stat-label">Зріст</div><div class="stat-value">${p.height_cm} см</div></div>
                         <div class="stat-box"><div class="stat-label">Вага</div><div class="stat-value">${p.weight_kg} кг</div></div>
                         <div class="stat-box"><div class="stat-label">Трен/тиж</div><div class="stat-value">${p.training_days_per_week}д</div></div>
+                        ${goalBadge}
                     </div>
                 ` + targetsHtml;
 
@@ -1181,6 +1194,8 @@
             const weightEl = document.getElementById('pe-weight');
             const goalEl = document.getElementById('pe-goal');
             const daysEl = document.getElementById('pe-days');
+            const goalWeightEl = document.getElementById('pe-goal-weight');
+            const goalDateEl = document.getElementById('pe-goal-date');
             const fields = document.getElementById('profile-fields');
             const text = fields.textContent;
             // Extract values from profile-fields display
@@ -1194,6 +1209,8 @@
                     goalEl.value = p.primary_goal;
                     daysEl.value = p.training_days_per_week;
                     nameEl.value = p.name;
+                    if (p.goal_weight) goalWeightEl.value = p.goal_weight;
+                    if (p.goal_date) goalDateEl.value = p.goal_date;
                 });
         }
 
@@ -1216,6 +1233,10 @@
                 primary_goal: document.getElementById('pe-goal').value,
                 training_days_per_week: parseInt(document.getElementById('pe-days').value),
             };
+            const gw = document.getElementById('pe-goal-weight').value;
+            const gd = document.getElementById('pe-goal-date').value;
+            if (gw) data.goal_weight = parseFloat(gw);
+            if (gd) data.goal_date = gd;
 
             try {
                 const res = await fetch('/api/v1/profile', {
@@ -1972,31 +1993,91 @@
                     progEl.innerHTML = '<div style="color:#888;font-size:13px">Немає активної програми</div>';
                 }
 
-                // Weight chart — SVG line chart
+                // Weight chart — SVG line chart with trend and goal
                 const weightEl = document.getElementById('progress-weight');
                 const wh = d.weight_history || [];
                 if (wh.length > 0) {
-                    const W = 340, H = 120, PAD = 28;
+                    const W = 340, H = 130, PAD = 28;
                     const weights = wh.map(function(w) { return parseFloat(w.weight_kg); });
                     const dates = wh.map(function(w) { return w.date; });
-                    const minW = Math.min.apply(null, weights);
-                    const maxW = Math.max.apply(null, weights);
-                    const range = (maxW - minW) || 1;
-                    const chartW = W - PAD * 2;
-                    const chartH = H - PAD * 2;
+                    const goalWeight = d.goal_weight ? parseFloat(d.goal_weight) : null;
+                    const trend = d.weight_trend || {};
+                    const slopePerWeek = trend.slope_kg_per_week || 0;
 
-                    // Normalize to chart coords
+                    // Determine Y range: include goal weight if set
+                    var allWeights = weights.slice();
+                    if (goalWeight) allWeights.push(goalWeight);
+                    var minW = Math.min.apply(null, allWeights);
+                    var maxW = Math.max.apply(null, allWeights);
+                    // Add padding to range
+                    var padding = (maxW - minW) * 0.15 || 2;
+                    minW = minW - padding;
+                    maxW = maxW + padding;
+                    var range = (maxW - minW) || 1;
+                    var chartW = W - PAD * 2;
+                    var chartH = H - PAD * 2;
+
+                    // Map weight to Y coordinate
+                    function w2y(w) {
+                        return PAD + chartH - ((w - minW) / range) * chartH;
+                    }
+
+                    // Historical line points
                     var points = weights.map(function(w, i) {
                         var x = PAD + (i / (weights.length - 1 || 1)) * chartW;
-                        var y = PAD + chartH - ((w - minW) / range) * chartH;
+                        var y = w2y(w);
                         return x.toFixed(1) + ',' + y.toFixed(1);
                     });
                     var polyline = points.join(' ');
+
+                    // Dots for historical data
                     var dots = weights.map(function(w, i) {
                         var x = PAD + (i / (weights.length - 1 || 1)) * chartW;
-                        var y = PAD + chartH - ((w - minW) / range) * chartH;
+                        var y = w2y(w);
                         return '<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="3" fill="var(--accent)"/>';
                     }).join('');
+
+                    // Goal line (horizontal dashed)
+                    var goalLine = '';
+                    if (goalWeight) {
+                        var gx1 = PAD, gx2 = PAD + chartW;
+                        var gy = w2y(goalWeight);
+                        if (gy >= PAD && gy <= PAD + chartH) {
+                            goalLine = '<line x1="' + gx1 + '" y1="' + gy.toFixed(1) + '" x2="' + gx2 + '" y2="' + gy.toFixed(1) + '" stroke="#22c55e" stroke-width="1.5" stroke-dasharray="4,3"/>';
+                            goalLine += '<text x="' + (PAD + chartW + 4) + '" y="' + (gy + 4).toFixed(1) + '" fill="#22c55e" font-size="10" font-weight="600">ціль ' + goalWeight.toFixed(1) + '</text>';
+                        }
+                    }
+
+                    // Trend projection line (from last point, extending ~30 days forward)
+                    var trendLine = '';
+                    if (weights.length >= 2 && slopePerWeek !== 0) {
+                        var lastX = PAD + chartW;
+                        var lastY = w2y(weights[weights.length - 1]);
+                        var firstX = PAD;
+                        var firstY = w2y(weights[0]);
+                        // Clip the trend line to the chart bounds
+                        var trendPoints = [];
+                        // Project from last historical point
+                        var projDays = 30;
+                        var projKgPerDay = slopePerWeek / 7;
+                        for (var di = 0; di <= projDays; di++) {
+                            var projWeight = weights[weights.length - 1] + projKgPerDay * di;
+                            var projX = PAD + chartW + (di / projDays) * chartW * 0.5;  // project 50% extra width
+                            var projY = w2y(projWeight);
+                            if (projY >= PAD - 10 && projY <= PAD + chartH + 10) {
+                                trendPoints.push(projX.toFixed(1) + ',' + projY.toFixed(1));
+                            }
+                        }
+                        if (trendPoints.length >= 2) {
+                            // Connect from last historical point to first projected point
+                            var lastPt = weights.length >= 2
+                                ? (PAD + chartW) + ',' + lastY.toFixed(1)
+                                : null;
+                            if (lastPt) trendPoints.unshift(lastPt);
+                            trendLine = '<polyline points="' + trendPoints.join(' ') + '" fill="none" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="3,2" stroke-linejoin="round" stroke-linecap="round"/>';
+                        }
+                    }
+
                     // Y-axis labels
                     var yLabels = [];
                     for (var step = 0; step <= 4; step++) {
@@ -2004,7 +2085,7 @@
                         var y = PAD + chartH - (step / 4) * chartH;
                         yLabels.push('<text x="' + (PAD - 4) + '" y="' + (y + 4).toFixed(1) + '" text-anchor="end" fill="#888" font-size="10">' + val.toFixed(1) + '</text>');
                     }
-                    // X-axis labels (show first, middle, last)
+                    // X-axis labels
                     var xLabels = [];
                     var showCount = Math.min(weights.length, 5);
                     for (var xi = 0; xi < showCount; xi++) {
@@ -2013,12 +2094,18 @@
                         xLabels.push('<text x="' + x.toFixed(1) + '" y="' + (H - 4) + '" text-anchor="middle" fill="#888" font-size="10">' + dates[idx].substring(5) + '</text>');
                     }
 
+                    var statusText = trend.status_text || '';
+                    var trendColor = slopePerWeek < 0 ? '#22c55e' : slopePerWeek > 0 ? '#ef4444' : '#f59e0b';
+
                     weightEl.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:auto;display:block;" xmlns="http://www.w3.org/2000/svg">' +
+                        goalLine +
                         '<polyline points="' + polyline + '" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>' +
+                        trendLine +
                         dots +
                         yLabels.join('') +
                         xLabels.join('') +
-                        '</svg>';
+                        '</svg>' +
+                        (statusText ? '<div style="margin-top:6px;font-size:12px;color:' + trendColor + ';font-weight:500;">' + statusText + '</div>' : '');
                 } else {
                     weightEl.innerHTML = '<div style="color:#888;font-size:13px;padding:4px 0">Ваги ще немає.<br><button onclick="showProfileEdit()" style="color:var(--accent);background:none;border:none;font-size:13px;cursor:pointer;margin-top:6px;padding:0;font-weight:600;">→ Записати вагу в профілі</button></div>';
                 }

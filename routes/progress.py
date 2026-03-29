@@ -4,6 +4,7 @@ import os
 from flask import Blueprint, request, jsonify
 from config import Config
 from routes.auth import validate_telegram_init_data, extract_user_from_init_data
+from datetime import datetime, timedelta
 
 progress_bp = Blueprint('progress', __name__)
 DB_PATH = os.path.join(os.path.dirname(__file__), '..', Config.DATABASE_PATH)
@@ -19,6 +20,92 @@ def get_user_id(telegram_id: int) -> int:
     row = cur.fetchone()
     db.close()
     return row[0] if row else None
+
+
+def linear_regression(weights: list[float], days: list[str]) -> dict:
+    """Calculate linear regression trend from weight history.
+    
+    Returns slope (kg/day), intercept, and predicted date to hit goal.
+    """
+    if len(weights) < 2:
+        return {"slope": 0, "intercept": weights[0] if weights else 0, "r2": 0, "predicted_date": None}
+
+    n = len(weights)
+    # x = day index (0, 1, 2, ...)
+    # y = weight
+    sum_x = sum(range(n))
+    sum_y = sum(weights)
+    sum_xy = sum(i * w for i, w in enumerate(weights))
+    sum_xx = sum(i * i for i in range(n))
+
+    denom = n * sum_xx - sum_x * sum_x
+    if abs(denom) < 1e-10:
+        return {"slope": 0, "intercept": sum_y / n, "r2": 0, "predicted_date": None}
+
+    slope = (n * sum_xy - sum_x * sum_y) / denom
+    intercept = (sum_y - slope * sum_x) / n
+
+    # R² calculation
+    y_mean = sum_y / n
+    ss_tot = sum((y - y_mean) ** 2 for y in weights)
+    ss_res = sum((y - (slope * i + intercept)) ** 2 for i, y in enumerate(weights))
+    r2 = 1 - ss_res / ss_tot if ss_tot > 0 else 0
+
+    return {
+        "slope": round(slope, 4),
+        "intercept": round(intercept, 2),
+        "r2": round(r2, 3),
+        "predicted_date": None,  # computed with goal in context
+    }
+
+
+def compute_trend_data(weight_history: list[dict], goal_weight: float | None) -> dict:
+    """Compute trend line data for the last 14 weight entries."""
+    history = weight_history[-14:] if len(weight_history) > 14 else weight_history
+    if len(history) < 2:
+        return {"trend_points": [], "on_track": None, "status_text": None}
+
+    weights = [float(w["weight_kg"]) for w in history]
+    dates = [w["date"] for w in history]
+
+    trend = linear_regression(weights, dates)
+    slope = trend["slope"]
+
+    # Build trend line points as {date, weight_kg} for SVG rendering
+    trend_points = []
+    latest_date = datetime.strptime(dates[-1], "%Y-%m-%d")
+    for i, w in enumerate(weights):
+        trend_points.append({"date": dates[i], "weight_kg": w})
+
+    # Project forward up to 90 days if we have a slope
+    current_weight = weights[-1]
+    if slope != 0 and goal_weight:
+        # Determine direction: losing = goal < current, gaining = goal > current
+        going_toward = (slope < 0 and goal_weight < current_weight) or (slope > 0 and goal_weight > current_weight)
+        if going_toward:
+            days_to_goal = abs((goal_weight - current_weight) / slope)
+            if 0 < days_to_goal < 365:
+                predicted = latest_date + timedelta(days=int(days_to_goal))
+                trend["predicted_date"] = predicted.strftime("%Y-%m-%d")
+
+    # Status text
+    if goal_weight and trend["predicted_date"]:
+        d = datetime.strptime(trend["predicted_date"], "%Y-%m-%d")
+        status_text = f"При поточному темпі: мета до {d.strftime('%d.%m.%Y')}"
+    elif goal_weight and slope != 0:
+        direction = "набирає" if slope > 0 else "втрачає"
+        status_text = f"Не на шляху до мети — {direction} {abs(slope)*7:.1f} кг/тиждень"
+    else:
+        status_text = None
+
+    return {
+        "slope_kg_per_day": trend["slope"],
+        "slope_kg_per_week": round(trend["slope"] * 7, 2),
+        "r2": trend["r2"],
+        "predicted_date": trend["predicted_date"],
+        "status_text": status_text,
+        "goal_weight": goal_weight,
+    }
 
 
 @progress_bp.route('/api/v1/progress', methods=['GET'])
@@ -94,6 +181,13 @@ def get_progress():
         LIMIT 1
     """, (user_id,)).fetchone()
 
+    # Goal weight and date
+    user_row = db.execute(
+        "SELECT goal_weight, goal_date FROM users WHERE id = ?", (user_id,)
+    ).fetchone()
+    goal_weight = user_row["goal_weight"] if user_row else None
+    goal_date = user_row["goal_date"] if user_row else None
+
     active_program = {
         "name": active["name"],
         "created_at": active["created_at"]
@@ -155,6 +249,9 @@ def get_progress():
 
     db.close()
 
+    # Compute trend data from last 14 weight entries
+    trend_data = compute_trend_data(weight_history, goal_weight)
+
     return jsonify({
         "weight_history": weight_history,
         "measurements": measurements,
@@ -167,4 +264,12 @@ def get_progress():
         "total_workouts": sum(t['count'] for t in training_per_week) if training_per_week else 0,
         "avg_workouts_per_week": round(sum(t['count'] for t in training_per_week) / len(training_per_week), 1) if training_per_week else 0,
         "weight_change": round(weight_history[0]['weight_kg'] - weight_history[-1]['weight_kg'], 1) if len(weight_history) >= 2 else None,
+        "goal_weight": goal_weight,
+        "goal_date": goal_date,
+        "weight_trend": {
+            "slope_kg_per_week": trend_data["slope_kg_per_week"],
+            "r2": trend_data["r2"],
+            "predicted_date": trend_data["predicted_date"],
+            "status_text": trend_data["status_text"],
+        },
     })
