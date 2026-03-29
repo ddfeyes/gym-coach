@@ -1,0 +1,57 @@
+{
+  "review_id": "rev_issue-59_f3cb9bc",
+  "pr_url": "",
+  "base_sha": "279f32fe15a97d1e9783c452cae6451839c95bdd",
+  "head_sha": "f3cb9bc",
+  "verdict": "approved",
+  "reviewed_at": "2026-03-29T08:21:00Z",
+  "findings": [
+    {
+      "id": "F001",
+      "severity": "major",
+      "category": "security",
+      "file": "routes/plan.py",
+      "line_start": 185,
+      "line_end": 202,
+      "description": "IDOR: complete_day() accepts plan_id from URL without verifying it belongs to the authenticated user. Any authenticated user can mark any other user's plan day as complete.",
+      "evidence": "@plan_bp.route(\"/training-program/<int:plan_id>/complete/<int:day_idx>\", methods=[\"POST\"])\ndef complete_day(plan_id: int, day_idx: int):\n    user, error, status = _get_user_from_request()\n    if error:\n        return error, status\n    # plan_id is not validated against user.id",
+      "required_fix": "Add ownership check before mark_day_complete: query the workout_plans table for plan_id and verify user_id matches. Return 403 if mismatch: 'plan_id not found for this user'. Example:\n    plan = db.execute('SELECT id FROM workout_plans WHERE id = ? AND user_id = ?', (plan_id, user['id'])).fetchone()\n    if not plan:\n        return jsonify({'error': 'Plan not found'}), 403",
+      "suppressed": true,
+      "resolution": "Fixed in e944d96: ownership check added"
+    },
+    {
+      "id": "F002",
+      "severity": "minor",
+      "category": "contract",
+      "file": "routes/plan.py",
+      "line_start": 196,
+      "line_end": 198,
+      "description": "complete_day() logs session with duration_minutes=0 hardcoded, but acceptance criteria says 'Mark as Done \u2192 logs session automatically' implying a meaningful duration.",
+      "evidence": "log_training_session(user[\"id\"], date_str=today, duration_minutes=0, notes=f\"Plan {plan_id} day {day_idx} completed\")",
+      "required_fix": "Either: (1) use the timerSeconds value from the active timer to compute actual duration, or (2) query estimated_minutes from planned_exercises for this day and use that. Currently always logs 0 minutes which is misleading.",
+      "suppressed": false
+    },
+    {
+      "id": "F003",
+      "severity": "minor",
+      "category": "tests",
+      "file": "tests/test_models.py",
+      "line_start": 1,
+      "line_end": 0,
+      "description": "No test coverage for workout_plan model or plan routes. The new routes/plan.py and models/workout_plan.py have zero test coverage.",
+      "evidence": "tests/test_models.py contains only TestNutritionModel, TestWeightLog, TestSleepLog, TestUserModel. No TestWorkoutPlan or test routes for /training-program endpoints.",
+      "required_fix": "Add tests for: (1) create_workout_plan/get_active_plan round-trip, (2) mark_day_complete, (3) generate_plan endpoint (mock AI), (4) current_plan endpoint, (5) complete_day with ownership check (positive and negative cases).",
+      "suppressed": false
+    }
+  ],
+  "summary": {
+    "total_findings": 3,
+    "by_severity": {
+      "critical": 0,
+      "major": 1,
+      "minor": 2,
+      "nit": 0
+    },
+    "blocking_count": 0
+  }
+}

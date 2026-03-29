@@ -11,6 +11,7 @@ from routes.measurements import measurements_bp
 from routes.water import water_bp
 from routes.progress import progress_bp
 from routes.training_sessions import sessions_bp
+from routes.plan import plan_bp
 from bot import handle_telegram_update
 
 app = Flask(__name__)
@@ -26,6 +27,7 @@ app.register_blueprint(measurements_bp)
 app.register_blueprint(water_bp)
 app.register_blueprint(progress_bp)
 app.register_blueprint(sessions_bp)
+app.register_blueprint(plan_bp, url_prefix='/api/v1/workout-plan')
 
 
 @app.route('/')
