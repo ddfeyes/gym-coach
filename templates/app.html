@@ -1149,7 +1149,7 @@
                 // Wait for program to generate, then show app and switch to training tab
                 const checkProgram = async () => {
                     try {
-                        const r = await fetch('/api/v1/training-program', {
+                        const r = await fetch('/api/v1/workout-plan/training-program', {
                             headers: { 'X-Telegram-Init-Data': initData },
                         });
                         if (r.ok) {
@@ -1403,7 +1403,7 @@
             content.innerHTML = '<div class="card"><div class="card-title">Завантаження...</div></div>';
 
             try {
-                const res = await fetch('/api/v1/training-program', {
+                const res = await fetch('/api/v1/workout-plan/training-program', {
                     headers: { 'X-Telegram-Init-Data': initData },
                 });
                 if (!res.ok) {
@@ -1518,7 +1518,7 @@
             btn.textContent = 'Генерація...';
 
             try {
-                const res = await fetch('/api/v1/training-program/generate', {
+                const res = await fetch('/api/v1/workout-plan/training-program/generate', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
