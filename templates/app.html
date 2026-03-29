@@ -2031,15 +2031,59 @@
         let timerInterval = null;
         let timerSeconds = 0;
         let timerStartTime = null;
+        const TIMER_STORAGE_KEY = 'gymcoach_timer';
+        const THREE_HOUR_SECS = 10800;
+        let threeHourWarningShown = false;
+
+        function saveTimerState() {
+            try {
+                localStorage.setItem(TIMER_STORAGE_KEY, JSON.stringify({
+                    timerSeconds: timerSeconds,
+                    timerStartTime: timerStartTime,
+                    threeHourWarningShown: threeHourWarningShown
+                }));
+            } catch(e) {}
+        }
+        function loadTimerState() {
+            try {
+                const saved = localStorage.getItem(TIMER_STORAGE_KEY);
+                if (saved) {
+                    const data = JSON.parse(saved);
+                    timerSeconds = data.timerSeconds || 0;
+                    timerStartTime = data.timerStartTime || null;
+                    threeHourWarningShown = data.threeHourWarningShown || false;
+                    return true;
+                }
+            } catch(e) {}
+            return false;
+        }
+        function clearTimerState() {
+            try { localStorage.removeItem(TIMER_STORAGE_KEY); } catch(e) {}
+            threeHourWarningShown = false;
+        }
         function startTimer() {
             if (timerInterval) return;
+            if (!loadTimerState() && timerSeconds === 0) {
+                timerStartTime = Date.now();
+                threeHourWarningShown = false;
+            }
             document.getElementById('timer-start-btn').disabled = true;
             document.getElementById('timer-stop-btn').disabled = false;
             document.getElementById('workout-timer').style.display = 'block';
-            timerStartTime = Date.now() - (timerSeconds * 1000);
+            if (timerSeconds > 0 && timerStartTime) {
+                timerStartTime = Date.now() - (timerSeconds * 1000);
+            } else {
+                timerStartTime = Date.now();
+            }
+            updateTimerDisplay();
             timerInterval = setInterval(function() {
                 timerSeconds = Math.floor((Date.now() - timerStartTime) / 1000);
                 updateTimerDisplay();
+                saveTimerState();
+                if (timerSeconds >= THREE_HOUR_SECS && !threeHourWarningShown) {
+                    threeHourWarningShown = true;
+                    showToast('⚠️ Тренування вже 3 години! Можливо, таймер забули вимкнути?');
+                }
             }, 1000);
         }
         function stopTimer() {
@@ -2049,6 +2093,7 @@
             document.getElementById('timer-start-btn').disabled = false;
             document.getElementById('timer-stop-btn').disabled = true;
             logWorkoutSession();
+            clearTimerState();
         }
         function updateTimerDisplay() {
             const h = Math.floor(timerSeconds / 3600);
@@ -2069,6 +2114,8 @@
                 if (res.ok) {
                     showToast('✅ Тренування (' + durationMinutes + ' хв) записано!');
                     timerSeconds = 0;
+                    timerStartTime = null;
+                    clearTimerState();
                     updateTimerDisplay();
                     document.getElementById('workout-timer').style.display = 'none';
                     if (document.getElementById('tab-training').classList.contains('active')) loadTraining();
