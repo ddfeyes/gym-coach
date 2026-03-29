@@ -4,6 +4,8 @@ import os
 from flask import Blueprint, request, jsonify
 from config import Config
 from routes.auth import validate_telegram_init_data, extract_user_from_init_data
+from routes.nutrition import _calculate_targets
+from models.user import get_user_by_id
 from datetime import datetime, timedelta
 
 progress_bp = Blueprint('progress', __name__)
@@ -464,6 +466,10 @@ def get_progress():
         for r in reversed(nutrition_rows)
     ]
 
+    # Macro targets for the user
+    user_profile = get_user_by_id(user_id)
+    macro_targets = _calculate_targets(user_profile) if user_profile else {}
+
     db.close()
 
     # Compute trend data from last 14 weight entries
@@ -478,6 +484,7 @@ def get_progress():
         "sleep_history": sleep_history,
         "water_history": water_history,
         "nutrition_history": nutrition_history,
+        "macro_targets": macro_targets,
         "total_workouts": sum(t['count'] for t in training_per_week) if training_per_week else 0,
         "avg_workouts_per_week": round(sum(t['count'] for t in training_per_week) / len(training_per_week), 1) if training_per_week else 0,
         "weight_change": round(weight_history[0]['weight_kg'] - weight_history[-1]['weight_kg'], 1) if len(weight_history) >= 2 else None,
