@@ -280,6 +280,21 @@
         .streak-count { font-size: 18px; font-weight: 900; color: #fff; letter-spacing: -0.5px; }
         .streak-label { font-size: 9px; font-weight: 700; color: rgba(255,255,255,0.4); text-transform: uppercase; letter-spacing: 0.5px; }
         .streak-pb { font-size: 9px; color: rgba(255,200,50,0.7); margin-top: 2px; min-height: 12px; }
+        .weekly-summary-card {
+            background: linear-gradient(135deg, rgba(255,107,53,0.15), rgba(255,140,53,0.1));
+            border: 1px solid rgba(255,107,53,0.3);
+            border-radius: 16px;
+            padding: 14px;
+            margin-bottom: 12px;
+        }
+        .ws-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .ws-title { font-size: 14px; font-weight: 700; color: var(--accent); }
+        .ws-dismiss { background: none; border: none; color: rgba(255,255,255,0.4); font-size: 16px; cursor: pointer; padding: 0; }
+        .ws-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 8px; }
+        .ws-stat { text-align: center; }
+        .ws-stat-value { font-size: 18px; font-weight: 900; color: #fff; }
+        .ws-stat-label { font-size: 9px; color: rgba(255,255,255,0.4); text-transform: uppercase; }
+        .ws-insight { font-size: 12px; color: rgba(255,255,255,0.7); font-style: italic; min-height: 16px; }
         .stat-box {
             background: var(--card-elevated);
             border: 1px solid var(--border);
@@ -842,6 +857,33 @@
         <!-- Progress Tab -->
         <div id="tab-progress" class="tab-content">
             <div class="page-header">📊 Прогрес</div>
+
+            <!-- Weekly Summary Card -->
+            <div class="weekly-summary-card hidden" id="weekly-summary-card">
+                <div class="ws-header">
+                    <span class="ws-title">📊 Тижневий огляд</span>
+                    <button class="ws-dismiss" onclick="dismissWeeklySummary()">✕</button>
+                </div>
+                <div class="ws-stats">
+                    <div class="ws-stat">
+                        <div class="ws-stat-value" id="ws-training">—</div>
+                        <div class="ws-stat-label">Тренувань</div>
+                    </div>
+                    <div class="ws-stat">
+                        <div class="ws-stat-value" id="ws-sleep">—</div>
+                        <div class="ws-stat-label">Сон (ср)</div>
+                    </div>
+                    <div class="ws-stat">
+                        <div class="ws-stat-value" id="ws-water">—</div>
+                        <div class="ws-stat-label">Вода дні</div>
+                    </div>
+                    <div class="ws-stat">
+                        <div class="ws-stat-value" id="ws-weight">—</div>
+                        <div class="ws-stat-label">Вага Δ</div>
+                    </div>
+                </div>
+                <div class="ws-insight" id="ws-insight"></div>
+            </div>
 
                         <!-- Stats Summary -->
             <div class="stats-row">
@@ -2274,6 +2316,9 @@
                 // Streak cards
                 loadStreaks();
 
+                // Weekly summary card (Monday only)
+                loadWeeklySummary();
+
                 // Weight chart — SVG line chart with trend and goal
                 const weightEl = document.getElementById('progress-weight');
                 const wh = d.weight_history || [];
@@ -2582,6 +2627,55 @@
             } catch (err) {
                 console.error('Progress load error:', err);
             }
+        }
+
+        function getWeekKey() {
+            const now = new Date();
+            const jan1 = new Date(now.getFullYear(), 0, 1);
+            const days = Math.floor((now - jan1) / 86400000);
+            const week = Math.ceil((days + jan1.getDay() + 1) / 7);
+            return now.getFullYear() + '-W' + String(week).padStart(2, '0');
+        }
+
+        function shouldShowWeeklySummary() {
+            const dismissed = localStorage.getItem('weekly_summary_dismissed_week');
+            return dismissed !== getWeekKey();
+        }
+
+        function dismissWeeklySummary() {
+            const card = document.getElementById('weekly-summary-card');
+            if (card) card.classList.add('hidden');
+            localStorage.setItem('weekly_summary_dismissed_week', getWeekKey());
+        }
+
+        async function loadWeeklySummary() {
+            if (!initData) return;
+            const now = new Date();
+            if (now.getDay() !== 1) return;  // Monday only
+            if (!shouldShowWeeklySummary()) return;
+            try {
+                const res = await fetch('/api/v1/progress/weekly-summary', {
+                    headers: { 'X-Telegram-Init-Data': initData },
+                });
+                if (!res.ok) return;
+                const d = await res.json();
+                const card = document.getElementById('weekly-summary-card');
+                if (!card) return;
+                document.getElementById('ws-training').textContent = d.training_count ?? 0;
+                const sleepEl = document.getElementById('ws-sleep');
+                if (sleepEl) sleepEl.textContent = d.avg_sleep ? d.avg_sleep + 'г' : '—';
+                document.getElementById('ws-water').textContent = (d.water_hit_days ?? 0) + '/7';
+                const weightEl = document.getElementById('ws-weight');
+                if (d.weight_delta !== null && d.weight_delta !== undefined) {
+                    const sign = d.weight_delta > 0 ? '+' : '';
+                    weightEl.textContent = sign + d.weight_delta + 'кг';
+                } else {
+                    weightEl.textContent = '—';
+                }
+                const insightEl = document.getElementById('ws-insight');
+                if (insightEl) insightEl.textContent = d.insight || '';
+                card.classList.remove('hidden');
+            } catch (err) {}
         }
 
         async function loadStreaks() {
