@@ -25,6 +25,13 @@ database.get_db().close()  # ensure module-level side effects run
 from database import create_tables
 create_tables()
 
+# Apply migration 010 for user_streaks table
+import importlib
+m010 = importlib.import_module('migrations.010_user_streaks')
+db = database.get_db()
+m010.migrate(db)
+db.close()
+
 
 @pytest.fixture(scope='module')
 def app():

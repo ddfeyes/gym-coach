@@ -108,9 +108,102 @@ def compute_trend_data(weight_history: list[dict], goal_weight: float | None) ->
     }
 
 
-@progress_bp.route('/api/v1/progress', methods=['GET'])
-def get_progress():
-    """Return all progress data for a user: weight, measurements, training."""
+def calc_consecutive_days(dates: list, threshold_fn) -> tuple:
+    """Returns (streak_count, start_date, end_date) for consecutive days meeting threshold.
+    Dates should be sorted descending (most recent first).
+    threshold_fn(date) -> bool
+    """
+    if not dates:
+        return 0, None, None
+
+    from datetime import date as date_cls, timedelta
+    today = date_cls.today().isoformat()
+    yesterday = (date_cls.today() - timedelta(days=1)).isoformat()
+
+    # Build set of valid dates
+    valid = set()
+    for d in dates:
+        if d and threshold_fn(d):
+            valid.add(d)
+
+    if not valid:
+        return 0, None, None
+
+    # If today not valid, streak must start from yesterday
+    if today in valid:
+        cursor = today
+    elif yesterday in valid:
+        cursor = yesterday
+    else:
+        return 0, None, None
+
+    # Count consecutive days backward
+    count = 0
+    d = date_cls.fromisoformat(cursor)
+    while d.isoformat() in valid:
+        count += 1
+        d -= timedelta(days=1)
+
+    end_date = cursor
+    start_date = (d + timedelta(days=1)).isoformat()
+    return count, start_date, end_date
+
+
+def get_training_streak(user_id: int, db) -> tuple:
+    rows = db.execute("""
+        SELECT DISTINCT DATE(date) as d FROM training_sessions
+        WHERE user_id = ? AND DATE(date) >= DATE('now', '-90 days')
+        ORDER BY d DESC
+    """, (user_id,)).fetchall()
+    dates = [r['d'] for r in rows]
+    return calc_consecutive_days(dates, lambda d: True)
+
+
+def get_sleep_streak(user_id: int, db) -> tuple:
+    rows = db.execute("""
+        SELECT date, hours FROM sleep_logs
+        WHERE user_id = ? AND DATE(date) >= DATE('now', '-90 days')
+    """, (user_id,)).fetchall()
+    date_hours = {r['date']: r['hours'] for r in rows}
+    return calc_consecutive_days(list(date_hours.keys()),
+        lambda d: date_hours.get(d, 0) >= 7)
+
+
+def get_water_streak(user_id: int, db) -> tuple:
+    rows = db.execute("""
+        SELECT date, amount_ml FROM water_logs
+        WHERE user_id = ? AND DATE(date) >= DATE('now', '-90 days')
+    """, (user_id,)).fetchall()
+    # Group by date, sum amount_ml
+    from collections import defaultdict
+    date_amounts = defaultdict(int)
+    for r in rows:
+        date_amounts[r['date']] += r['amount_ml']
+    WATER_GOAL = 2500  # default ml per day
+    return calc_consecutive_days(list(date_amounts.keys()),
+        lambda d: date_amounts.get(d, 0) >= WATER_GOAL)
+
+
+def upsert_personal_best(user_id: int, streak_type: str, count: int, start: str, end: str, db):
+    existing = db.execute(
+        "SELECT best_count FROM user_streaks WHERE user_id = ? AND streak_type = ?",
+        (user_id, streak_type)).fetchone()
+    if not existing or count > existing['best_count']:
+        db.execute("""
+            INSERT INTO user_streaks (user_id, streak_type, best_count, best_start, best_end, updated_at)
+            VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(user_id, streak_type) DO UPDATE SET
+                best_count = excluded.best_count,
+                best_start = excluded.best_start,
+                best_end = excluded.best_end,
+                updated_at = CURRENT_TIMESTAMP
+        """, (user_id, streak_type, count, start, end))
+        db.commit()
+
+
+@progress_bp.route('/api/v1/progress/streaks', methods=['GET'])
+def get_streaks():
+    """Return current streak + personal best for training, sleep, water."""
     init_data = request.headers.get('X-Telegram-Init-Data')
     if not init_data:
         return jsonify({"error": "Unauthorized"}), 401
@@ -125,6 +218,31 @@ def get_progress():
         return jsonify({"error": "User not found"}), 404
 
     db = get_db()
+    db.row_factory = sqlite3.Row
+
+    training_count, training_start, training_end = get_training_streak(user_id, db)
+    sleep_count, sleep_start, sleep_end = get_sleep_streak(user_id, db)
+    water_count, water_start, water_end = get_water_streak(user_id, db)
+
+    upsert_personal_best(user_id, 'training', training_count, training_start, training_end, db)
+    upsert_personal_best(user_id, 'sleep', sleep_count, sleep_start, sleep_end, db)
+    upsert_personal_best(user_id, 'water', water_count, water_start, water_end, db)
+
+    best_rows = db.execute(
+        "SELECT streak_type, best_count, best_start, best_end FROM user_streaks WHERE user_id = ?",
+        (user_id,)).fetchall()
+    bests = {r['streak_type']: {'count': r['best_count'], 'start': r['best_start'], 'end': r['best_end']}
+             for r in best_rows}
+
+    db.close()
+    return jsonify({
+        "training": {"current": training_count, "start": training_start, "end": training_end,
+                     "best": bests.get('training', {})},
+        "sleep": {"current": sleep_count, "start": sleep_start, "end": sleep_end,
+                  "best": bests.get('sleep', {})},
+        "water": {"current": water_count, "start": water_start, "end": water_end,
+                  "best": bests.get('water', {})},
+    })
     db.row_factory = sqlite3.Row
 
     # Weight history — last 30 days (uses created_at, NOT logged_at)
