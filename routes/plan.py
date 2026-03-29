@@ -1,6 +1,7 @@
 import json
 from flask import Blueprint, request, jsonify
 from config import Config
+from database import get_db
 from models.user import get_user_by_telegram_id
 from models.workout_plan import (
     create_workout_plan, get_active_plan, mark_day_complete,
@@ -195,7 +196,6 @@ def complete_day(plan_id: int, day_idx: int):
         return jsonify({"error": "day_idx must be 0-6"}), 400
 
     # IDOR fix: verify plan belongs to this user
-    from database import get_db
     db = get_db()
     row = db.execute(
         "SELECT id FROM workout_plans WHERE id = ? AND user_id = ?",
