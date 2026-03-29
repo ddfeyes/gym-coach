@@ -244,6 +244,106 @@ def get_streaks():
                   "best": bests.get('water', {})},
     })
 
+
+def get_weekly_summary_data(user_id: int, db) -> dict:
+    """Compute weekly summary data for a user. Used by endpoint and tests."""
+    from datetime import date, timedelta
+    today = date.today()
+    week_ago = (today - timedelta(days=7)).isoformat()
+
+    # Training sessions this week
+    training_row = db.execute(
+        "SELECT COUNT(*) as c FROM training_sessions WHERE user_id = ? AND DATE(date) >= ?",
+        (user_id, week_ago)).fetchone()
+    training_count = training_row['c'] if training_row else 0
+
+    # Avg sleep this week
+    sleep_row = db.execute(
+        "SELECT AVG(hours) as avg_hours FROM sleep_logs WHERE user_id = ? AND DATE(date) >= ?",
+        (user_id, week_ago)).fetchone()
+    avg_sleep = round(sleep_row['avg_hours'], 1) if sleep_row and sleep_row['avg_hours'] else 0
+
+    # Water goal hit days (>= 2500ml)
+    water_rows = db.execute(
+        "SELECT SUM(amount_ml) as total FROM water_logs WHERE user_id = ? AND DATE(date) >= ? GROUP BY date",
+        (user_id, week_ago)).fetchall()
+    water_hit_days = sum(1 for r in water_rows if r['total'] and r['total'] >= 2500)
+
+    # Weight change vs week ago
+    weight_now = db.execute(
+        "SELECT weight_kg FROM weight_logs WHERE user_id = ? ORDER BY date DESC LIMIT 1",
+        (user_id,)).fetchone()
+    weight_prev = db.execute(
+        "SELECT weight_kg FROM weight_logs WHERE user_id = ? AND date <= ? ORDER BY date DESC LIMIT 1",
+        (user_id, week_ago)).fetchone()
+    weight_delta = None
+    if weight_now and weight_prev:
+        weight_delta = round(weight_now['weight_kg'] - weight_prev['weight_kg'], 1)
+
+    # AI insight generation
+    insights = []
+    if training_count >= 4:
+        insights.append(f"Тренувань {training_count} з 7 — відмінно!")
+    elif training_count >= 2:
+        insights.append(f"Тренувань {training_count} з 7 — непогано")
+    else:
+        insights.append(f"Тільки {training_count} тренувань — час активізуватись")
+    if avg_sleep >= 7:
+        insights.append(f"Сон {avg_sleep}г — добре")
+    elif avg_sleep > 0:
+        insights.append(f"Сон {avg_sleep}г — менше 7г рекомендовано")
+    if water_hit_days >= 5:
+        insights.append(f"Вода {water_hit_days}/7 днів")
+    insight = " ".join(insights)
+
+    return {
+        "training_count": training_count,
+        "avg_sleep": avg_sleep,
+        "water_hit_days": water_hit_days,
+        "weight_delta": weight_delta,
+        "insight": insight,
+    }
+
+
+@progress_bp.route('/api/v1/progress/weekly-summary', methods=['GET'])
+def get_weekly_summary():
+    """Return weekly summary data for Monday card."""
+    init_data = request.headers.get('X-Telegram-Init-Data')
+    if not init_data:
+        return jsonify({"error": "Unauthorized"}), 401
+    if not validate_telegram_init_data(init_data, Config.TELEGRAM_BOT_TOKEN):
+        return jsonify({"error": "Invalid init data"}), 401
+    tg_user = extract_user_from_init_data(init_data)
+    telegram_id = tg_user.get('id')
+    user_id = get_user_id(telegram_id)
+    if not user_id:
+        return jsonify({"error": "User not found"}), 404
+    db = get_db()
+    db.row_factory = sqlite3.Row
+    data = get_weekly_summary_data(user_id, db)
+    db.close()
+    return jsonify(data)
+
+
+@progress_bp.route('/api/v1/progress', methods=['GET'])
+def get_progress():
+    """Return all progress data for a user: weight, measurements, training."""
+    init_data = request.headers.get('X-Telegram-Init-Data')
+    if not init_data:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    if not validate_telegram_init_data(init_data, Config.TELEGRAM_BOT_TOKEN):
+        return jsonify({"error": "Invalid init data"}), 401
+
+    tg_user = extract_user_from_init_data(init_data)
+    telegram_id = tg_user.get('id')
+    user_id = get_user_id(telegram_id)
+    if not user_id:
+        return jsonify({"error": "User not found"}), 404
+
+    db = get_db()
+    db.row_factory = sqlite3.Row
+
     # Weight history — last 30 days (uses created_at, NOT logged_at)
     weight_rows = db.execute("""
         SELECT weight_kg, date FROM weight_logs
