@@ -225,6 +225,11 @@
             font-weight: 700;
             color: var(--text);
         }
+        /* Profile uses larger stat values */
+        #tab-profile .stat-box .stat-value { font-size: 18px; }
+        /* Training card visual accent */
+        #training-content .card { border-left: 3px solid transparent; }
+        #training-content .card:first-child { border-left-color: var(--accent); }
 
         /* Form styles */
         .form-group {
@@ -297,6 +302,7 @@
             flex-direction: column;
             gap: 12px;
             padding-bottom: 8px;
+            min-height: 120px;
         }
 
         .message {
@@ -374,6 +380,9 @@
             padding: 8px 0 0;
             overflow-x: auto;
             -webkit-overflow-scrolling: touch;
+            padding-right: 20px;
+            mask-image: linear-gradient(to right, black 80%, transparent 100%);
+            -webkit-mask-image: linear-gradient(to right, black 80%, transparent 100%);
         }
         .quick-actions::-webkit-scrollbar { display: none; }
         .qa-chip {
@@ -766,7 +775,18 @@
 
         <!-- Profile Tab -->
         <div id="tab-profile" class="tab-content">
-            <div class="page-header">👤 Профіль <button class="edit-btn" onclick="showProfileEdit()">✏️ Редагувати</button></div>
+            <div class="page-header" style="flex-direction:column;align-items:flex-start;gap:12px;">
+                <div style="display:flex;align-items:center;justify-content:space-between;width:100%;">
+                    <div style="display:flex;align-items:center;gap:12px;">
+                        <div id="profile-avatar" style="width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,var(--accent),#ff9a35);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;">💪</div>
+                        <div>
+                            <div id="profile-display-name" style="font-size:18px;font-weight:700;">Завантаження...</div>
+                            <div id="profile-goal-badge" style="font-size:12px;color:#a0a0a0;margin-top:2px;">—</div>
+                        </div>
+                    </div>
+                    <button class="edit-btn" onclick="showProfileEdit()">✏️ Редагувати</button>
+                </div>
+            </div>
             <div class="card">
                 <div class="card-title" id="profile-name">Завантаження...</div>
             </div>
@@ -1051,13 +1071,19 @@
                         ${(prot && carb && fat) ? '<div class="profile-field"><span class="label">БЖУ</span><span class="value">' + prot + ' / ' + carb + ' / ' + fat + ' г</span></div>' : ''}
                     `;
                 }
+                // Update avatar display name and goal badge
+                const dnEl = document.getElementById('profile-display-name');
+                const badgeEl = document.getElementById('profile-goal-badge');
+                if (dnEl) dnEl.textContent = p.name;
+                if (badgeEl) badgeEl.textContent = (goals[p.primary_goal] || p.primary_goal) + ' · ' + (levels[p.experience_level] || p.experience_level);
+
                 fields.innerHTML = `
-                    <div class="profile-field"><span class="label">Вік</span><span class="value">${p.age} років</span></div>
-                    <div class="profile-field"><span class="label">Зріст</span><span class="value">${p.height_cm} см</span></div>
-                    <div class="profile-field"><span class="label">Вага</span><span class="value">${p.weight_kg} кг</span></div>
-                    <div class="profile-field"><span class="label">Досвід</span><span class="value">${levels[p.experience_level] || p.experience_level}</span></div>
-                    <div class="profile-field"><span class="label">Тренувань/тиж</span><span class="value">${p.training_days_per_week}</span></div>
-                    <div class="profile-field"><span class="label">Мета</span><span class="value">${goals[p.primary_goal] || p.primary_goal}</span></div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
+                        <div class="stat-box"><div class="stat-label">Вік</div><div class="stat-value">${p.age} р</div></div>
+                        <div class="stat-box"><div class="stat-label">Зріст</div><div class="stat-value">${p.height_cm} см</div></div>
+                        <div class="stat-box"><div class="stat-label">Вага</div><div class="stat-value">${p.weight_kg} кг</div></div>
+                        <div class="stat-box"><div class="stat-label">Трен/тиж</div><div class="stat-value">${p.training_days_per_week}д</div></div>
+                    </div>
                 ` + targetsHtml;
 
                 // Weight history
@@ -1305,7 +1331,7 @@
                         <div class="card">
                             <div class="card-title">${dayExercises[0].muscle_group || 'День ' + day}</div>
                             ${dayExercises.map(ex => `
-                                <div style="padding: 8px 0; border-bottom: 1px solid var(--border);">
+                                <div style="background:#252530;border-radius:8px;padding:10px 12px;margin-bottom:6px;">
                                     <div style="font-weight: 500;">${ex.exercise}</div>
                                     <div style="color: #a0a0a0; font-size: 13px;">
                                         ${ex.sets} підходів × ${ex.reps} повторів · відпочинок ${ex.rest_seconds}с
@@ -1416,32 +1442,12 @@
                 html += '<div class="pbar"><div class="pfill" style="width:' + fatPct + '%;background:var(--accent)"></div></div>';
                 html += '</div>';
 
-                // Macro distribution donut chart
-                const protCal = Math.round(summary.total_protein) * 4;
-                const carbsCal = Math.round(summary.total_carbs) * 4;
-                const fatCal = Math.round(summary.total_fat) * 9;
-                const totalCal = protCal + carbsCal + fatCal;
-                if (totalCal > 0) {
-                    const r = 40, cx = 50, cy = 50, circ = 2 * Math.PI * r;
-                    const protShare = protCal / totalCal;
-                    const carbsShare = carbsCal / totalCal;
-                    const fatShare = fatCal / totalCal;
-                    const dashProt = circ * protShare;
-                    const dashCarbs = circ * carbsShare;
-                    const dashFat = circ * fatShare;
-                    const gap = 4;
-                    html += '<div style="display:flex;align-items:center;gap:16px;margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">';
-                    html += '<svg viewBox="0 0 100 100" width="80" height="80" style="flex-shrink:0">';
-                    html += '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="none" stroke="#ef4444" stroke-width="12" stroke-dasharray="' + dashProt.toFixed(1) + ' ' + (circ - dashProt).toFixed(1) + '" stroke-dashoffset="' + (circ * 0.25).toFixed(1) + '"/>';
-                    html += '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="none" stroke="#22c55e" stroke-width="12" stroke-dasharray="' + dashCarbs.toFixed(1) + ' ' + (circ - dashCarbs).toFixed(1) + '" stroke-dashoffset="' + (circ * 0.25 - dashProt).toFixed(1) + '"/>';
-                    html += '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="none" stroke="var(--accent)" stroke-width="12" stroke-dasharray="' + dashFat.toFixed(1) + ' ' + (circ - dashFat).toFixed(1) + '" stroke-dashoffset="' + (circ * 0.25 - dashProt - dashCarbs).toFixed(1) + '"/>';
-                    html += '</svg>';
-                    html += '<div style="font-size:12px;line-height:1.8">';
-                    html += '<div><span style="color:#ef4444">●</span> Білок: ' + Math.round(protShare * 100) + '% (' + protCal + ' ккал)</div>';
-                    html += '<div><span style="color:#22c55e">●</span> Вугл.: ' + Math.round(carbsShare * 100) + '% (' + carbsCal + ' ккал)</div>';
-                    html += '<div><span style="color:var(--accent)">●</span> Жири: ' + Math.round(fatShare * 100) + '% (' + fatCal + ' ккал)</div>';
-                    html += '</div></div>';
-                }
+                // Remaining calories summary (replaces donut chart)
+                const remaining = targets.calories - Math.round(summary.total_calories);
+                html += '<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">';
+                html += '<span style="font-size:12px;color:#888">Залишилось</span>';
+                html += '<span style="font-size:18px;font-weight:700;color:' + (remaining < 0 ? '#ef4444' : '#22c55e') + '">' + Math.abs(remaining) + (remaining < 0 ? ' перебір' : ' ккал') + '</span>';
+                html += '</div>';
 
                 html += '</div></div>';
 
@@ -1595,8 +1601,8 @@
                     </div>
                 `;
 
-                // Sleep chart
-                if (entries.length > 0) {
+                // Sleep chart — show only if enough data
+                if (entries.length >= 3) {
                     const chartW = 340, chartH = 90, padX = 28, padY = 12;
                     const maxHours = 12;
                     const barW = Math.max(8, Math.min(28, (chartW - padX * 2) / entries.length - 6));
@@ -1619,6 +1625,14 @@
                     html += '<svg viewBox="0 0 ' + chartW + ' ' + chartH + '" style="width:100%;margin-top:8px;">';
                     html += barsHtml;
                     html += '</svg></div>';
+                } else if (entries.length > 0) {
+                    html += '<div class="card"><div class="card-title">😴 Сон по днях</div>';
+                    html += '<div style="color:#888;font-size:13px;padding:8px 0;">Добав ще ' + (3 - entries.length) + ' запис щоб побачити графік 📊</div>';
+                    entries.forEach(function(e) {
+                        const stars = '⭐'.repeat(e.quality) + '☆'.repeat(5 - e.quality);
+                        html += '<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:14px"><span>' + e.date + '</span><span>' + e.hours + 'ч ' + stars + '</span></div>';
+                    });
+                    html += '</div>';
                 }
 
                 html += '<div class="card"><div class="card-title">😴 Відмітити сьогодні</div><div style="display:flex;gap:8px;align-items:center;margin-top:8px;"><input type="number" class="form-input" id="sleep-hours" placeholder="Годин" step="0.5" min="0" max="24" style="width:80px;"><span style="color:#a0a0a0">годин</span><select class="form-select" id="sleep-quality" style="width:100px;"><option value="1">😴</option><option value="2">🙁</option><option value="3" selected>😐</option><option value="4">🙂</option><option value="5">😊</option></select><button class="btn-primary" onclick="logSleep()" id="sleep-btn" style="flex:1;">Зберегти</button></div></div>';
@@ -1786,6 +1800,22 @@
         }
 
         function addMessage(text, role) {
+            if (role === 'assistant' || role === 'typing') {
+                const wrap = document.createElement('div');
+                wrap.style.cssText = 'display:flex;gap:8px;align-items:flex-start;margin-bottom:4px;';
+                const av = document.createElement('div');
+                av.style.cssText = 'width:28px;height:28px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;margin-top:2px;';
+                av.textContent = '🏋️';
+                const div = document.createElement('div');
+                div.className = 'message ' + role;
+                div.style.maxWidth = 'calc(85% - 36px)';
+                div.textContent = text;
+                wrap.appendChild(av);
+                wrap.appendChild(div);
+                chatMessages.appendChild(wrap);
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+                return div;
+            }
             const div = document.createElement('div');
             div.className = 'message ' + role;
             div.textContent = text;
@@ -1990,7 +2020,7 @@
                         xLabels.join('') +
                         '</svg>';
                 } else {
-                    weightEl.innerHTML = '<div style="color:#888;font-size:13px">Немає даних про вагу</div>';
+                    weightEl.innerHTML = '<div style="color:#888;font-size:13px;padding:4px 0">Ваги ще немає.<br><button onclick="showProfileEdit()" style="color:var(--accent);background:none;border:none;font-size:13px;cursor:pointer;margin-top:6px;padding:0;font-weight:600;">→ Записати вагу в профілі</button></div>';
                 }
 
                 // Training heatmap
@@ -2023,7 +2053,7 @@
                     heatmapHTML += '</div>';
                     trainingEl.innerHTML = heatmapHTML;
                 } else {
-                    trainingEl.innerHTML = '<div style="color:#888;font-size:13px">Немає даних про тренування</div>';
+                    trainingEl.innerHTML = '<div style="color:#888;font-size:13px;padding:4px 0">Тренувань ще немає.<br><button onclick="switchTab(\'training\')" style="color:var(--accent);background:none;border:none;font-size:13px;cursor:pointer;margin-top:6px;padding:0;font-weight:600;">→ Перейти до тренувань</button></div>';
                 }
 
                 // Sleep SVG line chart
@@ -2069,7 +2099,7 @@
                     sleepEl.innerHTML = '<div class="profile-field"><span class="label">Годин сну</span><span class="value">' + sh[0].hours + ' год</span></div>' +
                         '<div class="profile-field"><span class="label">Якість</span><span class="value">' + (sh[0].quality || '-') + '/5</span></div>';
                 } else {
-                    sleepEl.innerHTML = '<div style="color:#888;font-size:13px">Немає даних про сон</div>';
+                    sleepEl.innerHTML = '<div style="color:#888;font-size:13px;padding:4px 0">Даних про сон ще немає.<br><button onclick="switchTab(\'sleep\')" style="color:var(--accent);background:none;border:none;font-size:13px;cursor:pointer;margin-top:6px;padding:0;font-weight:600;">→ Записати сон</button></div>';
                 }
 
                 // Water — horizontal bar chart (last 7 days)
@@ -2094,7 +2124,7 @@
                     bars += '<text x="' + PAD + '" y="' + (H - 4) + '" fill="#aaa" font-size="10">Ціль: ' + waterTarget + 'мл</text>';
                     waterEl.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:auto;display:block;" xmlns="http://www.w3.org/2000/svg">' + bars + '</svg>';
                 } else {
-                    waterEl.innerHTML = '<div style="color:#888;font-size:13px">Немає даних про воду</div>';
+                    waterEl.innerHTML = '<div style="color:#888;font-size:13px;padding:4px 0">Даних про воду ще немає.<br><button onclick="switchTab(\'sleep\')" style="color:var(--accent);background:none;border:none;font-size:13px;cursor:pointer;margin-top:6px;padding:0;font-weight:600;">→ Записати воду</button></div>';
                 }
 
                 // Nutrition — horizontal bar chart (last 7 days)
@@ -2118,7 +2148,7 @@
                     bars += '<text x="' + PAD + '" y="' + (H - 4) + '" fill="#aaa" font-size="10">Середнє: ' + avgCal + ' ккал/день</text>';
                     nutrEl.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:auto;display:block;" xmlns="http://www.w3.org/2000/svg">' + bars + '</svg>';
                 } else {
-                    nutrEl.innerHTML = '<div style="color:#888;font-size:13px">Немає даних про харчування</div>';
+                    nutrEl.innerHTML = '<div style="color:#888;font-size:13px;padding:4px 0">Харчування ще не записано.<br><button onclick="switchTab(\'nutrition\')" style="color:var(--accent);background:none;border:none;font-size:13px;cursor:pointer;margin-top:6px;padding:0;font-weight:600;">→ Записати їжу</button></div>';
                 }
 
                 // Measurements — SVG line charts
