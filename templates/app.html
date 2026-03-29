@@ -2543,23 +2543,51 @@
                 // Nutrition — horizontal bar chart (last 7 days)
                 const nutrEl = document.getElementById('progress-nutrition');
                 const nh = d.nutrition_history || [];
+                const targets = d.macro_targets || {};
+                const tProtein = targets.protein || 150;
+                const tCarbs = targets.carbs || 200;
+                const tFat = targets.fat || 70;
+                const tCal = (tProtein * 4) + (tCarbs * 4) + (tFat * 9);
                 if (nh.length > 0) {
-                    const maxCal = Math.max.apply(null, nh.map(function(n) { return n.calories || 0; }));
-                    const avgCal = Math.round(nh.reduce(function(s, n) { return s + (n.calories || 0); }, 0) / nh.length);
-                    const W = 340, H = nh.length * 40 + 24, PAD = 8;
-                    const barH = 20;
+                    // Totals row
+                    const totP = nh.reduce(function(s, n) { return s + (n.protein || 0); }, 0);
+                    const totC = nh.reduce(function(s, n) { return s + (n.carbs || 0); }, 0);
+                    const totF = nh.reduce(function(s, n) { return s + (n.fat || 0); }, 0);
+                    const pOk = totP >= tProtein * 0.9;
+                    const cOk = totC >= tCarbs * 0.9;
+                    const fOk = totF >= tFat * 0.9;
+                    const hdrColor = (pOk && cOk && fOk) ? '#22c55e' : ((totP >= tProtein * 0.8 || totC >= tCarbs * 0.8 || totF >= tFat * 0.8) ? '#f59e0b' : '#ef4444');
+                    const summaryRow = '<div style="display:flex;gap:12px;margin-bottom:8px;font-size:11px;font-weight:700;">' +
+                        '<span style="color:#3b82f6">Б: ' + totP + '/' + tProtein + 'г</span>' +
+                        '<span style="color:#f59e0b">В: ' + totC + '/' + tCarbs + 'г</span>' +
+                        '<span style="color:#ef4444">Ж: ' + totF + '/' + tFat + 'г</span>' +
+                        '</div>';
+                    const W = 340, H = nh.length * 36 + 16, PAD = 8;
+                    const barH = 18;
                     let bars = '';
                     nh.forEach(function(n, i) {
-                        var y = PAD + i * 40;
-                        var pct = maxCal > 0 ? (n.calories / maxCal) : 0;
-                        var barW = pct * (W - PAD * 2 - 60);
-                        var fillColor = '#f59e0b';
-                        bars += '<rect x="' + PAD + '" y="' + y + '" width="' + barW.toFixed(1) + '" height="' + barH + '" rx="4" fill="' + fillColor + '" opacity="0.8"/>';
-                        bars += '<text x="' + (PAD + barW + 6) + '" y="' + (y + 14) + '" fill="#888" font-size="11">' + n.calories + ' ккал</text>';
-                        bars += '<text x="' + (W - PAD) + '" y="' + (y + 14) + '" text-anchor="end" fill="#aaa" font-size="10">' + (n.date || '').substring(5) + '</text>';
+                        var y = PAD + i * 36;
+                        var pCal = (n.protein || 0) * 4;
+                        var cCal = (n.carbs || 0) * 4;
+                        var fCal = (n.fat || 0) * 9;
+                        var totalCal = pCal + cCal + fCal;
+                        var ratio = tCal > 0 ? Math.min(totalCal / tCal, 1.2) : 0;
+                        var barW = ratio * (W - PAD * 2 - 50);
+                        var pW = tCal > 0 ? (pCal / tCal) * barW : 0;
+                        var cW = tCal > 0 ? (cCal / tCal) * barW : 0;
+                        var fW = tCal > 0 ? (fCal / tCal) * barW : 0;
+                        // Overall color: green if >= 90%, orange 80-90%, red < 80%
+                        var barColor = totalCal >= tCal * 0.9 ? '#22c55e' : (totalCal >= tCal * 0.8 ? '#f59e0b' : '#ef4444');
+                        var rx = 3;
+                        if (pW > 0) bars += '<rect x="' + PAD + '" y="' + y + '" width="' + pW.toFixed(1) + '" height="' + barH + '" rx="' + rx + '" fill="#3b82f6" opacity="0.85"/>';
+                        if (cW > 0) bars += '<rect x="' + (PAD + pW).toFixed(1) + '" y="' + y + '" width="' + cW.toFixed(1) + '" height="' + barH + '" fill="#f59e0b" opacity="0.85"/>';
+                        if (fW > 0) bars += '<rect x="' + (PAD + pW + cW).toFixed(1) + '" y="' + y + '" width="' + fW.toFixed(1) + '" height="' + barH + '" rx="' + rx + '" fill="#ef4444" opacity="0.85"/>';
+                        // Color dot + macros text
+                        bars += '<circle cx="' + (PAD + barW + 8) + '" cy="' + (y + barH / 2 + 1) + '" r="4" fill="' + barColor + '"/>';
+                        bars += '<text x="' + (PAD + barW + 16) + '" y="' + (y + barH / 2 + 5) + '" fill="#888" font-size="10">' + Math.round(totalCal) + ' ккал</text>';
+                        bars += '<text x="' + (W - PAD) + '" y="' + (y + barH / 2 + 5) + '" text-anchor="end" fill="#aaa" font-size="10">' + (n.date || '').substring(5) + '</text>';
                     });
-                    bars += '<text x="' + PAD + '" y="' + (H - 4) + '" fill="#aaa" font-size="10">Середнє: ' + avgCal + ' ккал/день</text>';
-                    nutrEl.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:auto;display:block;" xmlns="http://www.w3.org/2000/svg">' + bars + '</svg>';
+                    nutrEl.innerHTML = summaryRow + '<svg viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:auto;display:block;" xmlns="http://www.w3.org/2000/svg">' + bars + '</svg>';
                 } else {
                     nutrEl.innerHTML = '<div style="color:#888;font-size:13px;padding:4px 0">Харчування ще не записано.<br><button onclick="switchTab(\'nutrition\')" style="color:var(--accent);background:none;border:none;font-size:13px;cursor:pointer;margin-top:6px;padding:0;font-weight:600;">→ Записати їжу</button></div>';
                 }
