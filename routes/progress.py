@@ -79,7 +79,6 @@ def compute_trend_data(weight_history: list[dict], goal_weight: float | None) ->
 
     # Project forward up to 90 days if we have a slope
     current_weight = weights[-1]
-    projected = []
     if slope != 0 and goal_weight:
         # Determine direction: losing = goal < current, gaining = goal > current
         going_toward = (slope < 0 and goal_weight < current_weight) or (slope > 0 and goal_weight > current_weight)
