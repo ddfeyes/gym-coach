@@ -194,6 +194,17 @@ def complete_day(plan_id: int, day_idx: int):
     if day_idx < 0 or day_idx > 6:
         return jsonify({"error": "day_idx must be 0-6"}), 400
 
+    # IDOR fix: verify plan belongs to this user
+    from database import get_db
+    db = get_db()
+    row = db.execute(
+        "SELECT id FROM workout_plans WHERE id = ? AND user_id = ?",
+        (plan_id, user["id"])
+    ).fetchone()
+    db.close()
+    if not row:
+        return jsonify({"error": "Plan not found"}), 404
+
     mark_day_complete(plan_id, day_idx)
 
     # Log to training_sessions
