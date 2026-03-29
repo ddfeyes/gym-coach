@@ -5,34 +5,9 @@ Run with: pytest tests/ -v
 import os
 import sys
 import pytest
-import tempfile
 
-# Add project root to path
-sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
-
-# Use a test database
-TEST_DB = tempfile.mktemp(suffix='.db')
-
-
-@pytest.fixture(scope='module')
-def app():
-    """Create test Flask app with test database."""
-    os.environ['TESTING'] = '1'
-
-    # Create test database with schema
-    from database import create_tables, get_db
-    create_tables()
-
-    from app import app as flask_app
-    flask_app.config['TESTING'] = True
-    return flask_app
-
-
-@pytest.fixture
-def client(app):
-    return app.test_client()
-
-
+# conftest.py handles test DB isolation via monkey-patch of Config.DATABASE_PATH
+# All tests use the same app fixture from conftest.py
 class TestNutritionModel:
     """Tests for nutrition model."""
 
