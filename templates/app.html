@@ -260,6 +260,26 @@
             gap: 8px;
             margin-bottom: 12px;
         }
+        .streak-cards {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+        .streak-card {
+            background: var(--card-elevated);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 10px 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .streak-emoji { font-size: 20px; }
+        .streak-info { flex: 1; }
+        .streak-count { font-size: 18px; font-weight: 900; color: #fff; letter-spacing: -0.5px; }
+        .streak-label { font-size: 9px; font-weight: 700; color: rgba(255,255,255,0.4); text-transform: uppercase; letter-spacing: 0.5px; }
+        .streak-pb { font-size: 9px; color: rgba(255,200,50,0.7); margin-top: 2px; min-height: 12px; }
         .stat-box {
             background: var(--card-elevated);
             border: 1px solid var(--border);
@@ -840,6 +860,34 @@
                 <div class="stat-box" style="border-top:2px solid rgba(59,130,246,0.55)">
                     <div class="stat-label">Сер/тиж</div>
                     <div class="stat-value" id="progress-avg-workouts">—</div>
+                </div>
+            </div>
+
+            <!-- Streak Cards -->
+            <div class="streak-cards">
+                <div class="streak-card" id="streak-card-training">
+                    <span class="streak-emoji">🔥</span>
+                    <div class="streak-info">
+                        <div class="streak-count" id="streak-training-count">—</div>
+                        <div class="streak-label">тренувань</div>
+                        <div class="streak-pb" id="streak-training-pb"></div>
+                    </div>
+                </div>
+                <div class="streak-card" id="streak-card-sleep">
+                    <span class="streak-emoji">💤</span>
+                    <div class="streak-info">
+                        <div class="streak-count" id="streak-sleep-count">—</div>
+                        <div class="streak-label">днів сну ≥7г</div>
+                        <div class="streak-pb" id="streak-sleep-pb"></div>
+                    </div>
+                </div>
+                <div class="streak-card" id="streak-card-water">
+                    <span class="streak-emoji">💧</span>
+                    <div class="streak-info">
+                        <div class="streak-count" id="streak-water-count">—</div>
+                        <div class="streak-label">днів води</div>
+                        <div class="streak-pb" id="streak-water-pb"></div>
+                    </div>
                 </div>
             </div>
 
@@ -2223,6 +2271,9 @@
                     progEl.innerHTML = '<div style="color:#888;font-size:13px">Немає активної програми</div>';
                 }
 
+                // Streak cards
+                loadStreaks();
+
                 // Weight chart — SVG line chart with trend and goal
                 const weightEl = document.getElementById('progress-weight');
                 const wh = d.weight_history || [];
@@ -2530,6 +2581,28 @@
 
             } catch (err) {
                 console.error('Progress load error:', err);
+            }
+        }
+
+        async function loadStreaks() {
+            if (!initData) return;
+            try {
+                const res = await fetch('/api/v1/progress/streaks', {
+                    headers: { 'X-Telegram-Init-Data': initData },
+                });
+                if (!res.ok) return;
+                const data = await res.json();
+                for (const type of ['training', 'sleep', 'water']) {
+                    const d = data[type] || {};
+                    const count = d.current || 0;
+                    const best = d.best || {};
+                    const countEl = document.getElementById('streak-' + type + '-count');
+                    const pbEl = document.getElementById('streak-' + type + '-pb');
+                    if (countEl) countEl.textContent = count ? count + ' дн' : '—';
+                    if (pbEl) pbEl.textContent = (best && best.count > 0) ? 'PB: ' + best.count + ' дн' : '';
+                }
+            } catch (err) {
+                // silently fail — streaks are non-critical
             }
         }
 
