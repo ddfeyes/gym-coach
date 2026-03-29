@@ -2445,25 +2445,46 @@
                 }
 
                 // Nutrition — horizontal bar chart (last 7 days)
+                // Nutrition — stacked macro bar chart (last 7 days)
                 const nutrEl = document.getElementById('progress-nutrition');
                 const nh = d.nutrition_history || [];
                 if (nh.length > 0) {
-                    const maxCal = Math.max.apply(null, nh.map(function(n) { return n.calories || 0; }));
-                    const avgCal = Math.round(nh.reduce(function(s, n) { return s + (n.calories || 0); }, 0) / nh.length);
-                    const W = 340, H = nh.length * 40 + 24, PAD = 8;
-                    const barH = 20;
-                    let bars = '';
-                    nh.forEach(function(n, i) {
-                        var y = PAD + i * 40;
-                        var pct = maxCal > 0 ? (n.calories / maxCal) : 0;
-                        var barW = pct * (W - PAD * 2 - 60);
-                        var fillColor = '#f59e0b';
-                        bars += '<rect x="' + PAD + '" y="' + y + '" width="' + barW.toFixed(1) + '" height="' + barH + '" rx="4" fill="' + fillColor + '" opacity="0.8"/>';
-                        bars += '<text x="' + (PAD + barW + 6) + '" y="' + (y + 14) + '" fill="#888" font-size="11">' + n.calories + ' ккал</text>';
-                        bars += '<text x="' + (W - PAD) + '" y="' + (y + 14) + '" text-anchor="end" fill="#aaa" font-size="10">' + (n.date || '').substring(5) + '</text>';
+                    const W = 340, H = nh.length * 56 + 40, PAD = 8;
+                    const barH = 28;
+                    const macros = ['protein', 'carbs', 'fat'];
+                    const colors = { protein: '#3b82f6', carbs: '#f59e0b', fat: '#ef4444' };
+                    const labels = { protein: 'Білок', carbs: 'Вуглеводи', fat: 'Жири' };
+
+                    let legend = '<div style="display:flex;gap:12px;margin-bottom:8px;flex-wrap:wrap;">';
+                    macros.forEach(function(m) {
+                        legend += '<span style="display:flex;align-items:center;gap:4px;font-size:11px;color:#aaa;">' +
+                            '<span style="width:10px;height:10px;border-radius:2px;background:' + colors[m] + ';display:inline-block;"></span>' +
+                            labels[m] + '</span>';
                     });
-                    bars += '<text x="' + PAD + '" y="' + (H - 4) + '" fill="#aaa" font-size="10">Середнє: ' + avgCal + ' ккал/день</text>';
-                    nutrEl.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:auto;display:block;" xmlns="http://www.w3.org/2000/svg">' + bars + '</svg>';
+                    legend += '</div>';
+
+                    let svgContent = '';
+                    nh.slice().reverse().forEach(function(n, i) {
+                        var y = PAD + 20 + i * 56;
+                        var runningX = PAD;
+                        var totalGrams = (n.protein || 0) + (n.carbs || 0) + (n.fat || 0);
+
+                        macros.forEach(function(m) {
+                            var grams = n[m] || 0;
+                            var barW = totalGrams > 0 ? (grams / totalGrams) * (W - PAD * 2) : 0;
+                            if (barW < 1) return;
+                            svgContent += '<rect x="' + runningX.toFixed(1) + '" y="' + y + '" width="' + barW.toFixed(1) + '" height="' + barH + '" rx="3" fill="' + colors[m] + '" opacity="0.85"/>';
+                            if (barW > 30) {
+                                svgContent += '<text x="' + (runningX + barW / 2).toFixed(1) + '" y="' + (y + barH / 2 + 4).toFixed(1) + '" text-anchor="middle" fill="#fff" font-size="10" font-weight="600">' + grams + 'г</text>';
+                            }
+                            runningX += barW;
+                        });
+
+                        svgContent += '<text x="' + (W - PAD) + '" y="' + (y + barH / 2 + 4) + '" text-anchor="end" fill="#aaa" font-size="10">' + (n.date || '').substring(5) + '</text>';
+                        svgContent += '<text x="' + PAD + '" y="' + (y + barH + 14) + '" fill="#666" font-size="10">' + (n.calories || 0) + ' ккал</text>';
+                    });
+
+                    nutrEl.innerHTML = legend + '<svg viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:auto;display:block;" xmlns="http://www.w3.org/2000/svg">' + svgContent + '</svg>';
                 } else {
                     nutrEl.innerHTML = '<div style="color:#888;font-size:13px;padding:4px 0">Харчування ще не записано.<br><button onclick="switchTab(\'nutrition\')" style="color:var(--accent);background:none;border:none;font-size:13px;cursor:pointer;margin-top:6px;padding:0;font-weight:600;">→ Записати їжу</button></div>';
                 }
