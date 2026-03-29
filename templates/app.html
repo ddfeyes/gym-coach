@@ -5,17 +5,26 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Body Coach AI</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
         :root {
             --accent: #FF6B35;
-            --bg: #121216;
-            --card-bg: #1c1c21;
-            --border: #2a2a30;
+            --accent-dim: rgba(255,107,53,0.14);
+            --accent-glow: rgba(255,107,53,0.4);
+            --bg: #0e0e12;
+            --card-bg: #18181f;
+            --card-elevated: #1e1e28;
+            --border: #2c2c38;
+            --border-subtle: #222230;
+            --text-secondary: #8a8a9a;
+            --text-muted: #4a4a60;
         }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
             background: var(--bg);
             color: #ffffff;
             min-height: 100vh;
@@ -156,13 +165,15 @@
             bottom: 0;
             left: 0;
             right: 0;
-            background: var(--card-bg);
-            border-top: 1px solid var(--border);
+            background: rgba(14,14,18,0.96);
+            border-top: 1px solid var(--border-subtle);
             display: flex;
             justify-content: space-around;
-            padding: 8px 0;
-            padding-bottom: max(8px, env(safe-area-inset-bottom));
+            padding: 6px 8px;
+            padding-bottom: max(10px, env(safe-area-inset-bottom));
             z-index: 100;
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
         }
 
         .nav-item {
@@ -172,42 +183,74 @@
             gap: 3px;
             padding: 6px 10px;
             cursor: pointer;
-            color: #555;
-            transition: color 0.2s;
+            color: var(--text-muted);
             font-size: 10px;
             -webkit-tap-highlight-color: transparent;
-            border-radius: 12px;
-            transition: color 0.15s, background 0.15s;
+            border-radius: 14px;
+            transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+            position: relative;
         }
         .nav-item.active {
             color: var(--accent);
-            background: rgba(255,107,53,0.12);
+            background: var(--accent-dim);
+            box-shadow: 0 0 0 1px rgba(255,107,53,0.2);
         }
-        .nav-item .nav-icon { font-size: 22px; }
-        .nav-item .nav-label { font-weight: 600; font-size: 9px; letter-spacing: 0.2px; }
+        .nav-item.active::after {
+            content: '';
+            position: absolute;
+            bottom: 3px; left: 50%; transform: translateX(-50%);
+            width: 4px; height: 4px;
+            background: var(--accent);
+            border-radius: 50%;
+            box-shadow: 0 0 6px var(--accent-glow);
+        }
+        .nav-item .nav-icon {
+            font-size: 22px;
+            filter: grayscale(1) opacity(0.45);
+            transition: filter 0.2s, transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        .nav-item.active .nav-icon {
+            filter: none;
+            transform: scale(1.15) translateY(-1px);
+        }
+        .nav-item .nav-label { font-weight: 600; font-size: 9px; letter-spacing: 0.3px; }
+        .nav-item.active .nav-label { color: var(--accent); }
 
         /* Cards */
         .card {
             background: var(--card-bg);
-            border-radius: 16px;
-            padding: 16px;
-            margin-bottom: 10px;
-            border: 1px solid var(--border);
-            box-shadow: 0 2px 12px rgba(0,0,0,0.3);
+            border-radius: 20px;
+            padding: 18px;
+            margin-bottom: 12px;
+            border: 1px solid var(--border-subtle);
+            box-shadow: 0 4px 24px rgba(0,0,0,0.45), 0 1px 0 rgba(255,255,255,0.03) inset;
+            position: relative;
+            overflow: hidden;
         }
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 2px;
+            background: transparent;
+            border-radius: 20px 20px 0 0;
+        }
+        .card-accent-orange::before { background: linear-gradient(90deg, var(--accent), transparent 70%); }
+        .card-accent-green::before  { background: linear-gradient(90deg, #22c55e, transparent 70%); }
+        .card-accent-blue::before   { background: linear-gradient(90deg, #3b82f6, transparent 70%); }
 
         .card-title {
-            font-size: 14px;
+            font-size: 11px;
             font-weight: 700;
-            margin-bottom: 10px;
-            color: #a0a0a0;
+            margin-bottom: 12px;
+            color: var(--text-muted);
             text-transform: uppercase;
-            letter-spacing: 0.6px;
+            letter-spacing: 1px;
         }
 
         .card-subtitle {
             font-size: 13px;
-            color: #a0a0a0;
+            color: var(--text-secondary);
         }
 
         /* Stats summary row */
@@ -218,27 +261,39 @@
             margin-bottom: 12px;
         }
         .stat-box {
-            background: var(--card-bg);
+            background: var(--card-elevated);
             border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 12px 6px;
+            border-radius: 16px;
+            padding: 14px 6px;
             text-align: center;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+            box-shadow: 0 2px 12px rgba(0,0,0,0.35);
+            position: relative;
+            overflow: hidden;
+        }
+        .stat-box::after {
+            content: '';
+            position: absolute;
+            bottom: 0; left: 50%; transform: translateX(-50%);
+            width: 40%; height: 1px;
+            background: linear-gradient(90deg, transparent, var(--accent), transparent);
+            opacity: 0.35;
         }
         .stat-label {
             font-size: 9px;
-            color: #666;
-            margin-bottom: 5px;
+            font-weight: 700;
+            color: var(--text-muted);
+            margin-bottom: 6px;
             text-transform: uppercase;
-            letter-spacing: 0.4px;
+            letter-spacing: 0.6px;
         }
         .stat-value {
-            font-size: 18px;
-            font-weight: 800;
-            color: var(--text);
+            font-size: 20px;
+            font-weight: 900;
+            color: #ffffff;
+            letter-spacing: -0.5px;
         }
         /* Profile uses larger stat values */
-        #tab-profile .stat-box .stat-value { font-size: 18px; }
+        #tab-profile .stat-box .stat-value { font-size: 20px; }
         /* Training card visual accent */
         #training-content .card { border-left: 3px solid transparent; }
         #training-content .card:first-child { border-left-color: var(--accent); }
@@ -255,18 +310,18 @@
         }
         .form-input, .form-select {
             width: 100%;
-            background: #1e1e24;
+            background: var(--card-elevated);
             border: 1.5px solid var(--border);
-            border-radius: 10px;
-            padding: 12px 14px;
+            border-radius: 12px;
+            padding: 13px 16px;
             color: #fff;
             font-size: 15px;
             outline: none;
-            transition: border-color 0.2s;
+            transition: border-color 0.2s, box-shadow 0.2s;
         }
         .form-input:focus, .form-select:focus {
             border-color: var(--accent);
-            box-shadow: 0 0 0 3px rgba(255,107,53,0.15);
+            box-shadow: 0 0 0 3px rgba(255,107,53,0.12);
         }
         .form-error {
             color: #ef4444;
@@ -276,34 +331,39 @@
 
         .btn-primary {
             width: 100%;
-            background: linear-gradient(135deg, var(--accent) 0%, #ff9a35 100%);
+            background: linear-gradient(135deg, var(--accent) 0%, #ff8c35 100%);
             border: none;
-            border-radius: 12px;
-            padding: 15px;
+            border-radius: 14px;
+            padding: 16px;
             color: #fff;
-            font-size: 16px;
+            font-size: 15px;
             font-weight: 700;
             cursor: pointer;
             margin-top: 8px;
-            letter-spacing: 0.3px;
-            box-shadow: 0 4px 15px rgba(255,107,53,0.35);
+            letter-spacing: 0.4px;
+            box-shadow: 0 6px 20px rgba(255,107,53,0.4), 0 2px 0 rgba(255,255,255,0.1) inset;
+            transition: transform 0.15s, box-shadow 0.15s;
         }
-        .btn-primary:active { transform: scale(0.98); }
+        .btn-primary:active {
+            transform: scale(0.97);
+            box-shadow: 0 2px 8px rgba(255,107,53,0.3);
+        }
         .btn-primary:disabled {
             opacity: 0.4;
             cursor: default;
             box-shadow: none;
         }
         .btn-accent-sm {
-            background: var(--accent);
+            background: linear-gradient(135deg, var(--accent), #ff8c35);
             border: none;
-            border-radius: 20px;
-            padding: 6px 14px;
+            border-radius: 22px;
+            padding: 7px 16px;
             color: #fff;
             font-size: 13px;
-            font-weight: 600;
+            font-weight: 700;
             cursor: pointer;
             white-space: nowrap;
+            box-shadow: 0 3px 10px rgba(255,107,53,0.35);
         }
 
         /* Chat styles */
@@ -325,31 +385,32 @@
 
         .message {
             max-width: 85%;
-            padding: 10px 14px;
-            border-radius: 16px;
+            padding: 11px 15px;
+            border-radius: 18px;
             font-size: 14px;
-            line-height: 1.5;
+            line-height: 1.55;
             word-wrap: break-word;
             white-space: pre-wrap;
         }
 
         .message.user {
             align-self: flex-end;
-            background: var(--accent);
+            background: linear-gradient(135deg, var(--accent), #ff8c35);
             color: #fff;
             border-bottom-right-radius: 4px;
+            box-shadow: 0 4px 12px rgba(255,107,53,0.35);
         }
 
         .message.assistant {
             align-self: flex-start;
-            background: var(--card-bg);
+            background: var(--card-elevated);
             border: 1px solid var(--border);
             border-bottom-left-radius: 4px;
         }
 
         .message.typing {
             align-self: flex-start;
-            background: var(--card-bg);
+            background: var(--card-elevated);
             border: 1px solid var(--border);
             border-bottom-left-radius: 4px;
             color: #666;
@@ -364,16 +425,16 @@
 
         .chat-input-area input {
             flex: 1;
-            background: var(--card-bg);
-            border: 1px solid var(--border);
-            border-radius: 24px;
+            background: var(--card-elevated);
+            border: 1.5px solid var(--border);
+            border-radius: 28px;
             padding: 10px 16px;
             color: #fff;
             font-size: 14px;
             outline: none;
         }
-        .chat-input-area input::placeholder { color: #666; }
-        .chat-input-area input:focus { border-color: var(--accent); }
+        .chat-input-area input::placeholder { color: #4a4a60; }
+        .chat-input-area input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(255,107,53,0.1); }
 
         .chat-send-btn {
             background: var(--accent);
@@ -405,17 +466,22 @@
         .quick-actions::-webkit-scrollbar { display: none; }
         .qa-chip {
             flex-shrink: 0;
-            background: var(--card-bg);
+            background: var(--card-elevated);
             border: 1px solid var(--border);
-            border-radius: 16px;
-            padding: 6px 12px;
-            color: #a0a0a0;
+            border-radius: 18px;
+            padding: 7px 14px;
+            color: var(--text-secondary);
             font-size: 12px;
+            font-weight: 500;
             cursor: pointer;
             white-space: nowrap;
-            transition: border-color 0.2s, color 0.2s;
+            transition: all 0.15s;
         }
-        .qa-chip:active { border-color: var(--accent); color: var(--accent); }
+        .qa-chip:active {
+            background: var(--accent-dim);
+            border-color: var(--accent);
+            color: var(--accent);
+        }
         .meal-btn {
             flex: 1;
             background: var(--card-bg);
@@ -455,28 +521,30 @@
         .profile-field .label { color: #a0a0a0; }
         .profile-field .value { font-weight: 500; }
 
-        .mrow { display: flex; justify-content: space-between; padding: 5px 0; font-size: 13px; color: #888; }
-        .mrow span:last-child { color: #f0f0f0; font-weight: 600; }
-        .pbar { height: 5px; background: #252530; border-radius: 4px; margin: 3px 0 10px; overflow: hidden; }
-        .pfill { height: 100%; border-radius: 4px; transition: width 0.4s ease; }
+        .mrow { display: flex; justify-content: space-between; padding: 6px 0; font-size: 13px; color: var(--text-secondary); }
+        .mrow span:last-child { color: #ffffff; font-weight: 700; }
+        .pbar { height: 8px; background: var(--border); border-radius: 6px; margin: 4px 0 12px; overflow: hidden; }
+        .pfill { height: 100%; border-radius: 6px; transition: width 0.6s cubic-bezier(0.34, 1.1, 0.64, 1); }
 
         /* Page header */
         .page-header {
-            font-size: 24px;
-            font-weight: 800;
-            margin-bottom: 16px;
+            font-size: 26px;
+            font-weight: 900;
+            margin-bottom: 18px;
             display: flex;
             align-items: center;
             justify-content: space-between;
-            letter-spacing: -0.5px;
+            letter-spacing: -0.8px;
+            color: #ffffff;
         }
         .edit-btn {
-            background: none;
+            background: var(--card-elevated);
             border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 4px 10px;
-            color: #a0a0a0;
-            font-size: 13px;
+            border-radius: 10px;
+            padding: 6px 12px;
+            color: var(--text-secondary);
+            font-size: 12px;
+            font-weight: 600;
             cursor: pointer;
         }
         .edit-btn:active { border-color: var(--accent); color: var(--accent); }
@@ -564,6 +632,45 @@
             min-width: 40px;
             text-align: right;
             color: #ccc;
+        }
+
+        /* ── PREMIUM EXTRAS ────────────────────────────────── */
+        @keyframes skeleton-pulse {
+            0%,100% { opacity: 0.4; }
+            50% { opacity: 0.7; }
+        }
+        .skeleton {
+            background: var(--card-elevated);
+            border-radius: 8px;
+            animation: skeleton-pulse 1.5s ease-in-out infinite;
+        }
+        @media (hover: hover) {
+            .card:hover {
+                border-color: #3a3a50;
+                transform: translateY(-1px);
+                transition: border-color 0.2s, transform 0.2s;
+            }
+        }
+        /* Training left accent bar */
+        #training-content .card:first-child {
+            border-left: 3px solid var(--accent);
+        }
+        /* Profile field row */
+        .profile-field {
+            padding: 11px 0;
+        }
+        .profile-field .label { color: var(--text-secondary); font-size: 13px; }
+        .profile-field .value { font-weight: 600; font-size: 14px; }
+        /* Modal elevation */
+        .modal-content {
+            background: var(--card-elevated);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            box-shadow: 0 24px 64px rgba(0,0,0,0.7);
+        }
+        /* Tab content spacing */
+        .tab-content {
+            padding-bottom: 90px;
         }
     </style>
 </head>
@@ -718,19 +825,19 @@
 
                         <!-- Stats Summary -->
             <div class="stats-row">
-                <div class="stat-box">
+                <div class="stat-box" style="border-top:2px solid rgba(255,107,53,0.55)">
                     <div class="stat-label">Тренувань</div>
                     <div class="stat-value" id="progress-total-workouts">—</div>
                 </div>
-                <div class="stat-box">
+                <div class="stat-box" style="border-top:2px solid rgba(255,200,50,0.55)">
                     <div class="stat-label">Стрік</div>
                     <div class="stat-value" id="progress-streak">—</div>
                 </div>
-                <div class="stat-box">
+                <div class="stat-box" style="border-top:2px solid rgba(34,197,94,0.55)">
                     <div class="stat-label">Зміна ваги</div>
                     <div class="stat-value" id="progress-weight-change">—</div>
                 </div>
-                <div class="stat-box">
+                <div class="stat-box" style="border-top:2px solid rgba(59,130,246,0.55)">
                     <div class="stat-label">Сер/тиж</div>
                     <div class="stat-value" id="progress-avg-workouts">—</div>
                 </div>
